@@ -31,6 +31,7 @@ def _build_dispatcher():
     from handlers.coup import router as coup_router, restore_coup_timers
     from handlers.empire import router as empire_router
     from handlers.admin import router as admin_router
+    from handlers.shop import router as shop_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -38,6 +39,7 @@ def _build_dispatcher():
     dp.callback_query.outer_middleware(membership_middleware)
     dp.include_router(main_router)
     dp.include_router(admin_router)
+    dp.include_router(shop_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
