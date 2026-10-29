@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from games.empire import service
@@ -10,15 +10,18 @@ CITY_ALIASES = {key: key for key in CITIES}
 CITY_ALIASES.update({'بازار': 'market', 'بازار مرکزی': 'market', 'بندر': 'port', 'بندر قدیمی': 'port', 'ارگ': 'citadel', 'ارگ سلطنتی': 'citadel', 'صنعتی': 'industrial', 'منطقه صنعتی': 'industrial', 'پایتخت': 'capital', 'پایتخت زیرزمین': 'capital'})
 
 
-def empire_keyboard():
+def empire_keyboard(owner_id: int):
+    uid = int(owner_id)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🎁 پاداش روزانه', callback_data='empire:daily'), InlineKeyboardButton(text='🧰 کار روزانه', callback_data='empire:work')],
-        [InlineKeyboardButton(text='🏭 دارایی‌های من', callback_data='empire:assets'), InlineKeyboardButton(text='🏆 رتبه‌بندی', callback_data='empire:top')],
-        [InlineKeyboardButton(text='🗺️ نقشهٔ قلمروها', callback_data='empire:cities'), InlineKeyboardButton(text='👑 قلمروهای من', callback_data='empire:mycities')],
+        [InlineKeyboardButton(text='🎁 پاداش روزانه', callback_data=f'empire:{uid}:daily'), InlineKeyboardButton(text='🧰 کار روزانه', callback_data=f'empire:{uid}:work')],
+        [InlineKeyboardButton(text='🏭 دارایی‌های من', callback_data=f'empire:{uid}:assets'), InlineKeyboardButton(text='🏆 رتبه‌بندی', callback_data=f'empire:{uid}:top')],
+        [InlineKeyboardButton(text='🗺️ نقشهٔ قلمروها', callback_data=f'empire:{uid}:cities'), InlineKeyboardButton(text='👑 قلمروهای من', callback_data=f'empire:{uid}:mycities')],
+        [InlineKeyboardButton(text='🛒 فروشگاه', callback_data=f'empire:{uid}:shop')],
     ])
 
 
-@router.message(Command('empire', 'empire_menu'))
+@router.message(Command('empire', 'empire_menu', 'امپراتوری', 'امپراطوری'))
+@router.message(F.text.in_({'امپراتوری', 'امپراطوری', 'empire'}))
 async def empire_menu(message: Message):
     await message.answer(
         '🏙️ امپراتوری — اقتصاد و قلمرو\n\n'
@@ -37,10 +40,11 @@ async def empire_menu(message: Message):
         '/empire_army — مشاهدهٔ ارتش\n/empire_recruit تعداد — استخدام سرباز (هر سرباز ۲۰ سکه)\n/empire_disband تعداد — مرخص‌کردن سرباز\n'
         '/empire_my_cities — قلمروهای تو\n/empire_city_top — رتبه‌بندی فرمانروایان\n\n'
         'مالیات هر قلمرو هر ۶ ساعت قابل دریافت است؛ دفاع تا سطح ۵ ارتقا می‌یابد.',
-        reply_markup=empire_keyboard())
+        reply_markup=empire_keyboard(message.from_user.id))
 
 
-@router.message(Command('empire_daily'))
+@router.message(Command('empire_daily', 'پاداش'))
+@router.message(F.text.in_({'پاداش', 'پاداش روزانه'}))
 async def empire_daily(message: Message):
     try:
         reward, balance = await service.claim_daily(message.from_user.id)
@@ -49,7 +53,8 @@ async def empire_daily(message: Message):
         await message.answer(str(exc))
 
 
-@router.message(Command('empire_work'))
+@router.message(Command('empire_work', 'کار'))
+@router.message(F.text.in_({'کار', 'کار روزانه'}))
 async def empire_work(message: Message):
     try:
         reward, balance = await service.work(message.from_user.id)
@@ -224,9 +229,28 @@ async def empire_disband(message: Message):
 
 @router.callback_query(lambda call: call.data and call.data.startswith('empire:'))
 async def empire_menu_buttons(call):
-    action = call.data.split(':', 1)[1]
+    parts = (call.data or '').split(':')
+    # empire:{owner}:{action}  (legacy empire:action also accepted for owner=clicker only via reject)
+    if len(parts) == 2:
+        await call.answer('این دکمه قدیمی است؛ دوباره /empire بزن.', show_alert=True)
+        return
+    if len(parts) < 3:
+        await call.answer('دکمه نامعتبر', show_alert=True)
+        return
+    try:
+        owner_id = int(parts[1])
+    except ValueError:
+        await call.answer('دکمه نامعتبر', show_alert=True)
+        return
+    if int(call.from_user.id) != owner_id:
+        await call.answer('🚫 این پنل مال تو نیست.', show_alert=True)
+        return
+    action = parts[2]
     await call.answer()
     if not call.message:
+        return
+    if action == 'shop':
+        await call.message.answer('🛒 برای فروشگاه بنویس: فروشگاه یا /shop')
         return
     if action == 'daily':
         try:

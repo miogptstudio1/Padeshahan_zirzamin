@@ -5,6 +5,7 @@ from core.database import upsert_user, db
 from core import staff as staff_service
 from config import WEB_APP_URL
 from membership import membership_status, join_keyboard
+from handlers.guide import GUIDE_SHORT, GUIDE_FULL
 
 router = Router()
 
@@ -17,10 +18,13 @@ async def menu(user_id: int | None = None, show_web_app: bool = False):
             InlineKeyboardButton(text='🃏 کودتا', callback_data='menu:coup'),
         ],
         [
+            InlineKeyboardButton(text='🛒 فروشگاه', callback_data='menu:shop'),
+            InlineKeyboardButton(text='👤 پروفایل', callback_data='menu:profile'),
+        ],
+        [
             InlineKeyboardButton(text='📜 قوانین', callback_data='menu:rules'),
             InlineKeyboardButton(text='❓ راهنما', callback_data='menu:help'),
         ],
-        [InlineKeyboardButton(text='👤 پروفایل', callback_data='menu:profile')],
     ]
     if show_web_app and WEB_APP_URL.startswith("https://"):
         rows.insert(0, [InlineKeyboardButton(text='🌐 ورود به وب‌اپ', web_app=WebAppInfo(url=WEB_APP_URL))])
@@ -113,26 +117,25 @@ async def profile(message: Message):
 @router.message(Command('help', 'راهنما', 'کمک'))
 @router.message(F.text.in_({'راهنما', 'کمک', 'هلپ', 'help'}))
 async def help_command(message: Message):
-    await message.answer(
-        "📖 <b>راهنمای پادشاهان زیرزمین</b>\n\n"
-        "🔹 <b>دستورات اصلی</b> (با یا بدون /):\n"
-        "• شروع / استارت — منوی اصلی\n"
-        "• پروفایل — وضعیت تو\n"
-        "• راهنما / کمک — همین پیام\n\n"
-        "🎭 <b>مافیا</b>\n"
-        "• /mafia_create — ساخت اتاق\n"
-        "• /mafia_join — پیوستن\n"
-        "• /mafia_start — شروع\n\n"
-        "🏙️ <b>امپراتوری</b>\n"
-        "• /empire — منو\n"
-        "• /empire_daily — پاداش روزانه\n"
-        "• /empire_work — کار\n\n"
-        "🃏 <b>کودتا</b>\n"
-        "• /coup_create · /coup_join · /coup_start\n\n"
-        "🛡️ پرسنل: دستور <code>ادمین</code>\n\n"
-        "💡 نقش مخفی فقط بعد از «شروع» در چت خصوصی ربات داده می‌شه.",
-        parse_mode="HTML",
-    )
+    await message.answer(GUIDE_SHORT, parse_mode="HTML")
+
+
+@router.message(Command('guide', 'راهنماکامل'))
+@router.message(F.text.in_({'راهنما کامل', 'راهنمای کامل', 'guide', 'راهنماکامل'}))
+async def help_full(message: Message):
+    text = GUIDE_FULL
+    if len(text) <= 4000:
+        await message.answer(text, parse_mode="HTML")
+        return
+    chunk = ""
+    for block in text.split("\n\n"):
+        if len(chunk) + len(block) + 2 > 4000:
+            await message.answer(chunk, parse_mode="HTML")
+            chunk = block
+        else:
+            chunk = f"{chunk}\n\n{block}" if chunk else block
+    if chunk:
+        await message.answer(chunk, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "membership:check")
@@ -217,6 +220,6 @@ async def menu_admin(call: CallbackQuery):
         f"🛡️ <b>پنل مدیریت</b>\n\n"
         f"👤 نقش: <b>{role}</b>\n"
         f"از دکمه‌ها یا دستورات متنی استفاده کن.",
-        reply_markup=admin_menu_kb(),
+        reply_markup=admin_menu_kb(call.from_user.id),
         parse_mode="HTML",
     )

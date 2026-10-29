@@ -21,15 +21,16 @@ def _parse_id(text: str | None) -> int | None:
     return None
 
 
-def admin_menu_kb() -> InlineKeyboardMarkup:
+def admin_menu_kb(owner_id: int) -> InlineKeyboardMarkup:
+    uid = int(owner_id)
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="📊 آمار", callback_data="adm:stats"),
-            InlineKeyboardButton(text="👥 پرسنل", callback_data="adm:staff"),
+            InlineKeyboardButton(text="📊 آمار", callback_data=f"adm:{uid}:stats"),
+            InlineKeyboardButton(text="👥 پرسنل", callback_data=f"adm:{uid}:staff"),
         ],
         [
-            InlineKeyboardButton(text="📜 لاگ اخیر", callback_data="adm:audit"),
-            InlineKeyboardButton(text="❓ راهنمای ادمین", callback_data="adm:help"),
+            InlineKeyboardButton(text="📜 لاگ اخیر", callback_data=f"adm:{uid}:audit"),
+            InlineKeyboardButton(text="❓ راهنمای ادمین", callback_data=f"adm:{uid}:help"),
         ],
     ])
 
@@ -55,18 +56,30 @@ async def admin_panel(message: Message):
         f"👤 نقش تو: <b>{role}</b>\n"
         f"🔑 دسترسی‌ها: {len(perms)} مورد\n\n"
         f"از دکمه‌های زیر استفاده کن یا دستورات متنی رو بفرست.",
-        reply_markup=admin_menu_kb(),
+        reply_markup=admin_menu_kb(message.from_user.id),
         parse_mode="HTML",
     )
 
 
 @router.callback_query(F.data.startswith("adm:"))
 async def admin_callbacks(call: CallbackQuery):
+    parts = (call.data or "").split(":")
+    if len(parts) < 3:
+        await call.answer("دکمه قدیمی/نامعتبر — دوباره «ادمین» بزن", show_alert=True)
+        return
+    try:
+        owner_id = int(parts[1])
+    except ValueError:
+        await call.answer("دکمه نامعتبر", show_alert=True)
+        return
+    if int(call.from_user.id) != owner_id:
+        await call.answer("🚫 این پنل مال تو نیست.", show_alert=True)
+        return
     profile = await staff_service.staff_profile(call.from_user.id)
     if not profile.get("is_staff"):
         await call.answer("دسترسی نداری", show_alert=True)
         return
-    action = call.data.split(":", 1)[1]
+    action = parts[2]
     await call.answer()
 
     if action == "stats":
@@ -86,7 +99,7 @@ async def admin_callbacks(call: CallbackQuery):
             f"⭐ ابرادمین (env): <b>{len(ADMIN_IDS)}</b>"
         )
         if call.message:
-            await call.message.answer(text, parse_mode="HTML", reply_markup=admin_menu_kb())
+            await call.message.answer(text, parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "staff":
@@ -105,7 +118,7 @@ async def admin_callbacks(call: CallbackQuery):
                 f"• <b>{r.get('role_label') or r['role']}</b> — {r.get('display_name') or '—'} "
                 f"({uname}) <code>{r['telegram_id']}</code>"
             )
-        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb())
+        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "audit":
@@ -124,11 +137,11 @@ async def admin_callbacks(call: CallbackQuery):
                 f"#{r['id']} <code>{r['action']}</code> توسط {r['actor_name'] or r['actor_id']}\n"
                 f"   هدف: <code>{tgt}</code> — {r['detail'] or '—'}"
             )
-        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb())
+        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "help":
-        await call.message.answer(_admin_help_text(), parse_mode="HTML", reply_markup=admin_menu_kb())
+        await call.message.answer(_admin_help_text(), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
 
@@ -387,5 +400,5 @@ async def cmd_stats(message: Message):
         f"🪙 مجموع سکه: <b>{int(coins):,}</b>\n"
         f"🎮 مجموع بازی: <b>{int(games):,}</b>",
         parse_mode="HTML",
-        reply_markup=admin_menu_kb(),
+        reply_markup=admin_menu_kb(message.from_user.id),
     )
