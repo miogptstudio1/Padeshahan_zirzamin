@@ -148,10 +148,13 @@ body{
 <body>
 <div id="membershipGate">
   <div class="panel">
-    <h2>🔒 عضویت اجباری</h2>
-    <p class="muted">برای ورود باید عضو کانال‌های رسمی باشی.</p>
-    <div id="gateChannels" class="grid2" style="margin:12px 0"></div>
-    <button class="btn primary block" id="gateRecheck">بررسی مجدد</button>
+    <h2>👑 عضویت اجباری</h2>
+    <p class="muted" style="line-height:1.7">
+      برای ورود به دنیای پادشاهان زیرزمین باید عضو هر دو کانال باشی.<br>
+      اول دکمه‌های زیر رو بزن و عضو شو، بعد «بررسی عضویت» رو بزن 🚀
+    </p>
+    <div id="gateChannels" style="display:flex;flex-direction:column;gap:8px;margin:14px 0"></div>
+    <button class="btn primary block" id="gateRecheck">✅ بررسی عضویت</button>
   </div>
 </div>
 
@@ -457,11 +460,16 @@ body{
       if (res.status===403 && data.detail && typeof data.detail==='object' && Array.isArray(data.detail.channels)){
         const box = document.getElementById('gateChannels');
         box.innerHTML = '';
-        data.detail.channels.forEach(ch=>{
+        const icons = ['📢', '🌿'];
+        data.detail.channels.forEach((ch, i)=>{
           const a = document.createElement('a');
-          a.className = 'btn'; a.style.textDecoration='none'; a.target='_blank'; a.rel='noopener';
+          a.className = 'btn gold';
+          a.style.textDecoration = 'none';
+          a.target = '_blank';
+          a.rel = 'noopener';
           a.href = ch.url || ('https://t.me/'+(ch.username||'').replace('@',''));
-          a.textContent = 'عضویت در '+(ch.title||ch.username||'کانال');
+          const label = ch.title || ch.username || 'کانال';
+          a.innerHTML = (icons[i] || '📢') + ' عضویت در ' + label;
           box.appendChild(a);
         });
         document.getElementById('membershipGate').classList.add('show');
@@ -493,8 +501,12 @@ body{
       await api('/api/me');
       document.getElementById('membershipGate').classList.remove('show');
       await refresh();
-      toast('عضویت تأیید شد','win');
-    } catch(e){ if (e.message!=='membership_gate') toast(e.message,'lose'); }
+      toast('✅ عضویت تأیید شد! خوش اومدی 🎉','win');
+      haptic('ok');
+    } catch(e){
+      if (e.message==='membership_gate') toast('هنوز عضو هر دو کانال نشدی 😅','lose');
+      else toast(e.message,'lose');
+    }
   });
 
   async function refresh(){
