@@ -8,6 +8,7 @@ from handlers.mafia import router as mafia_router, restore_active_timers
 from handlers.coup import router as coup_router, restore_coup_timers
 from handlers.empire import router as empire_router
 from handlers.admin import router as admin_router
+from handlers.shop import router as shop_router
 from games.empire import service as empire_service
 from games.empire.engine import war_result_message
 from membership import RequiredMembershipMiddleware
@@ -46,6 +47,7 @@ async def main():
  war_task = asyncio.create_task(empire_war_scheduler(bot))
  dp.include_router(main_router)
  dp.include_router(admin_router)
+ dp.include_router(shop_router)
  dp.include_router(callbacks_router)
  dp.include_router(mafia_router)
  dp.include_router(coup_router)
