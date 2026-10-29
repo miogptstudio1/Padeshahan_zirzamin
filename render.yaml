@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: padeshahan-zirezamin
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_web.py
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_IDS
+        sync: false
+      - key: NIGHT_SECONDS
+        value: "60"
+      - key: DAY_SECONDS
+        value: "90"
+      - key: MIN_PLAYERS
+        value: "5"
+      - key: MAX_PLAYERS
+        value: "12"
