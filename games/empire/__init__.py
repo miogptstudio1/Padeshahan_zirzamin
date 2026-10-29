@@ -1,1 +1,1 @@
-
+"""Empire economy game module."""
