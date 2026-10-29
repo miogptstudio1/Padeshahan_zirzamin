@@ -1,7 +1,7 @@
 """Required-channel membership gate for Telegram bot updates and Mini App APIs."""
 from __future__ import annotations
 from aiogram import BaseMiddleware
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from aiogram.exceptions import TelegramAPIError
 from typing import Any, Awaitable, Callable
 
@@ -16,39 +16,146 @@ def join_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+MEMBERSHIP_TEXT = (
+    "👑 به پادشاهان زیرزمین خوش اومدی!\n\n"
+    "برای ورود به دنیای بازی‌ها، باید عضو هر دو کانال باشی:\n\n"
+    "1️⃣ اول روی دکمه «📢 عضویت در کانال اول» بزن و عضو شو\n"
+    "2️⃣ بعد روی دکمه «🌿 عضویت در کانال دوم» بزن و عضو شو\n"
+    "3️⃣ وقتی عضو شدی، روی «✅ بررسی عضویت» بزن تا وارد شی 🚀\n\n"
+    "منتظرتم... 😉"
+)
+
+MEMBERSHIP_ERROR_TEXT = (
+    "⚠️ اوه! فعلاً نمی‌تونم عضویتت رو چک کنم.\n\n"
+    "یه کم صبر کن و دوباره روی «بررسی عضویت» بزن 🔄\n"
+    "اگه مشکل ادامه داشت، به ادمین بگو ربات رو توی کانال‌ها ادمین کنه 🛠️"
+)
+
+# Plain-text triggers that count as "using the bot" (without leading /)
+BOT_TEXT_TRIGGERS = {
+    "شروع", "استارت", "start",
+    "پروفایل", "پروفایل من", "profile",
+    "راهنما", "کمک", "هلپ", "help",
+    "ادمین", "مدیریت", "پنل ادمین", "admin",
+    "آمار", "stats",
+    "چالش", "پوشش",  # mafia game keywords used as plain text
+}
+
+BOT_TEXT_PREFIXES = (
+    "جستجو ", "بن ", "آنبن ", "انبن ", "سکه ", "مقام ", "حذف‌مقام ", "حذفمقام ",
+    "همگانی ",
+    "/mafia", "/coup", "/empire", "/admin", "/ban", "/unban", "/lookup",
+    "/coins", "/grant", "/revoke", "/broadcast", "/stats", "/profile",
+    "/help", "/start", "/شروع", "/پروفایل", "/راهنما", "/کمک", "/ادمین",
+)
+
+
+def _is_bot_command_message(event: Message) -> bool:
+    """True only when the user is actually trying to use the bot."""
+    text = (event.text or event.caption or "").strip()
+    if not text:
+        return False
+    # Telegram command entity (/start@BotName etc.)
+    entities = event.entities or event.caption_entities or []
+    for ent in entities:
+        if getattr(ent, "type", None) == "bot_command":
+            return True
+    if text.startswith("/"):
+        return True
+    lower = text.lower()
+    if text in BOT_TEXT_TRIGGERS or lower in BOT_TEXT_TRIGGERS:
+        return True
+    for prefix in BOT_TEXT_PREFIXES:
+        if text.startswith(prefix) or lower.startswith(prefix.lower()):
+            return True
+    return False
+
+
 class RequiredMembershipMiddleware(BaseMiddleware):
-    async def __call__(self, handler: Callable[[Any, dict[str, Any]], Awaitable[Any]], event: Any, data: dict[str, Any]) -> Any:
+    async def __call__(
+        self,
+        handler: Callable[[Any, dict[str, Any]], Awaitable[Any]],
+        event: Any,
+        data: dict[str, Any],
+    ) -> Any:
         user = getattr(event, "from_user", None)
         if user is None:
             return await handler(event, data)
+
         # Always allow the explicit check callback through so the user can retry.
         if getattr(event, "data", None) == "membership:check":
             return await handler(event, data)
+
+        # Super-admins from ADMIN_IDS bypass channel gate.
+        try:
+            from config import ADMIN_IDS
+            if int(user.id) in ADMIN_IDS:
+                return await handler(event, data)
+        except Exception:
+            pass
+
+        # --- Only gate actual bot usage, not normal group chat ---
+        if isinstance(event, Message):
+            chat_type = getattr(event.chat, "type", "private")
+            # In groups/channels: ignore ordinary messages completely.
+            if chat_type != "private" and not _is_bot_command_message(event):
+                return await handler(event, data)
+            # In private: only gate when user issues a bot command / trigger.
+            # Casual non-command text in private still passes (no spam).
+            if chat_type == "private" and not _is_bot_command_message(event):
+                return await handler(event, data)
+        elif isinstance(event, CallbackQuery):
+            # Inline button presses always count as bot usage → gate them.
+            pass
+        else:
+            return await handler(event, data)
+
         bot = data.get("bot")
         if bot is None:
             return await handler(event, data)
+
         joined, _missing, error = await membership_status(bot, user.id)
         if joined:
             return await handler(event, data)
-        text = (
-            "⚠️ فعلاً امکان بررسی عضویت در کانال‌ها وجود ندارد.\n"
-            "لطفاً کمی بعد دوباره «بررسی عضویت» را بزن. اگر مشکل ادامه داشت، مدیر ربات باید دسترسی لازم را به ربات بدهد."
-            if error else
-            "👑 برای استفاده از «پادشاهان زیرزمین»، عضویت در هر دو کانال زیر اجباری است.\n\n"
-            "۱) عضو کانال اول شو.\n۲) عضو کانال دوم شو.\n۳) روی «بررسی عضویت» بزن."
-        )
+
+        text = MEMBERSHIP_ERROR_TEXT if error else MEMBERSHIP_TEXT
         keyboard = join_keyboard()
-        # Keep gate prompts in private chats to avoid flooding game groups.
-        if getattr(event, "message", None) is not None and getattr(event.message.chat, "type", "private") != "private":
-            await event.answer("برای استفاده از ربات، ابتدا در خصوصی ربات عضویت دو کانال را بررسی کن.")
+
+        chat = None
+        if isinstance(event, Message):
+            chat = event.chat
+        elif isinstance(event, CallbackQuery) and event.message:
+            chat = event.message.chat
+
+        # Groups: short hint, don't flood with full join UI
+        if chat is not None and getattr(chat, "type", "private") != "private":
+            try:
+                if isinstance(event, CallbackQuery):
+                    await event.answer(
+                        "🔒 اول تو چت خصوصی ربات عضویت دو کانال رو تأیید کن.",
+                        show_alert=True,
+                    )
+                else:
+                    await event.answer(
+                        "🔒 برای استفاده از ربات، اول تو چت خصوصی ربات عضویت دو کانال رو تأیید کن."
+                    )
+            except TelegramAPIError:
+                pass
             return None
+
+        # Private chat: full prompt + join buttons
         try:
-            if hasattr(event, "answer") and hasattr(event, "message") and event.message is not None:
+            if isinstance(event, Message):
                 await event.answer(text, reply_markup=keyboard)
-            elif hasattr(event, "answer"):
-                await event.answer(text, show_alert=True)
-                if getattr(event, "message", None):
-                    await event.message.answer(text, reply_markup=keyboard)
+            elif isinstance(event, CallbackQuery):
+                await event.answer()
+                if event.message:
+                    try:
+                        await event.message.edit_text(text, reply_markup=keyboard)
+                    except TelegramAPIError:
+                        await event.message.answer(text, reply_markup=keyboard)
+                else:
+                    await bot.send_message(user.id, text, reply_markup=keyboard)
         except TelegramAPIError:
             pass
         return None
