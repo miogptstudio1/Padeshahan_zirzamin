@@ -30,12 +30,14 @@ def _build_dispatcher():
     from handlers.mafia import router as mafia_router, restore_active_timers
     from handlers.coup import router as coup_router, restore_coup_timers
     from handlers.empire import router as empire_router
+    from handlers.admin import router as admin_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
     dp.message.outer_middleware(membership_middleware)
     dp.callback_query.outer_middleware(membership_middleware)
     dp.include_router(main_router)
+    dp.include_router(admin_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -146,8 +148,11 @@ async def current_user(x_telegram_init_data: str | None = Header(default=None, a
         raise HTTPException(status_code=503, detail="بررسی عضویت کانال‌ها ممکن نیست؛ مدیر باید دسترسی ربات به کانال‌ها را بررسی کند")
     if not joined:
         raise HTTPException(status_code=403, detail={
-            "message": "عضویت در هر دو کانال برای استفاده از بازی اجباری است.",
-            "channels": [{"username": channel, "url": url} for channel, _label, url in REQUIRED_CHANNELS],
+            "message": "برای ورود به پادشاهان زیرزمین باید عضو هر دو کانال باشی 👑",
+            "channels": [
+                {"username": channel, "title": label, "url": url}
+                for channel, label, url in REQUIRED_CHANNELS
+            ],
         })
     name = " ".join(x for x in (user.get("first_name", ""), user.get("last_name", "")) if x).strip() or str(user["id"])
     await upsert_user(int(user["id"]), user.get("username"), name)
