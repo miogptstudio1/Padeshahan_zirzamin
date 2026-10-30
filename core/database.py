@@ -253,8 +253,99 @@ SCHEMA = [
  detail TEXT NOT NULL DEFAULT '',
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
-"""CREATE INDEX IF NOT EXISTS staff_audit_log_recent ON staff_audit_log(id DESC)"""
+"""CREATE INDEX IF NOT EXISTS staff_audit_log_recent ON staff_audit_log(id DESC)""",
+"""CREATE TABLE IF NOT EXISTS game_events (
+ id BIGSERIAL PRIMARY KEY,
+ event_key TEXT NOT NULL UNIQUE,
+ title TEXT NOT NULL,
+ description TEXT NOT NULL DEFAULT '',
+ kind TEXT NOT NULL DEFAULT 'weekly',
+ starts_at TIMESTAMPTZ NOT NULL,
+ ends_at TIMESTAMPTZ NOT NULL,
+ reward_coins INTEGER NOT NULL DEFAULT 0,
+ reward_xp INTEGER NOT NULL DEFAULT 0,
+ metric TEXT NOT NULL DEFAULT 'points',
+ status TEXT NOT NULL DEFAULT 'scheduled',
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)""",
+"""CREATE INDEX IF NOT EXISTS game_events_active ON game_events(status, starts_at, ends_at)""",
+"""CREATE TABLE IF NOT EXISTS game_event_scores (
+ event_id BIGINT NOT NULL REFERENCES game_events(id) ON DELETE CASCADE,
+ telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ points BIGINT NOT NULL DEFAULT 0,
+ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY (event_id, telegram_id)
+)""",
+"""CREATE INDEX IF NOT EXISTS game_event_scores_rank ON game_event_scores(event_id, points DESC)""",
+"""CREATE TABLE IF NOT EXISTS game_event_claims (
+ event_id BIGINT NOT NULL REFERENCES game_events(id) ON DELETE CASCADE,
+ telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ rank INTEGER NOT NULL,
+ reward_coins INTEGER NOT NULL DEFAULT 0,
+ claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY (event_id, telegram_id)
+)""",
+"""CREATE TABLE IF NOT EXISTS families (
+ id BIGSERIAL PRIMARY KEY,
+ name TEXT NOT NULL UNIQUE,
+ tag TEXT NOT NULL UNIQUE,
+ leader_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ motto TEXT NOT NULL DEFAULT '',
+ level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 50),
+ xp BIGINT NOT NULL DEFAULT 0 CHECK (xp >= 0),
+ treasury BIGINT NOT NULL DEFAULT 0 CHECK (treasury >= 0),
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)""",
+"""CREATE TABLE IF NOT EXISTS family_members (
+ family_id BIGINT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+ telegram_id BIGINT NOT NULL UNIQUE REFERENCES users(telegram_id) ON DELETE CASCADE,
+ role TEXT NOT NULL DEFAULT 'member',
+ joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY (family_id, telegram_id)
+)""",
+"""CREATE INDEX IF NOT EXISTS family_members_family ON family_members(family_id)""",
+"""CREATE TABLE IF NOT EXISTS family_invites (
+ id BIGSERIAL PRIMARY KEY,
+ family_id BIGINT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+ inviter_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ invitee_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ status TEXT NOT NULL DEFAULT 'pending',
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ UNIQUE(family_id, invitee_id, status)
+)""",
+"""CREATE TABLE IF NOT EXISTS player_hideouts (
+ telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+ name TEXT NOT NULL DEFAULT 'پناهگاه کوچک',
+ level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 20),
+ defense INTEGER NOT NULL DEFAULT 5,
+ last_attacked_at TIMESTAMPTZ,
+ last_crime_at TIMESTAMPTZ,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)""",
+"""CREATE TABLE IF NOT EXISTS pvp_attacks (
+ id BIGSERIAL PRIMARY KEY,
+ attacker_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ defender_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ stolen INTEGER NOT NULL DEFAULT 0,
+ attacker_power INTEGER NOT NULL DEFAULT 0,
+ defender_power INTEGER NOT NULL DEFAULT 0,
+ won BOOLEAN NOT NULL DEFAULT FALSE,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)""",
+"""CREATE INDEX IF NOT EXISTS pvp_attacks_recent ON pvp_attacks(created_at DESC)""",
+"""CREATE TABLE IF NOT EXISTS crime_logs (
+ id BIGSERIAL PRIMARY KEY,
+ actor_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ target_id BIGINT REFERENCES users(telegram_id) ON DELETE SET NULL,
+ kind TEXT NOT NULL,
+ amount INTEGER NOT NULL DEFAULT 0,
+ success BOOLEAN NOT NULL DEFAULT TRUE,
+ detail TEXT NOT NULL DEFAULT '',
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)"""
+
 ]
+
 
 async def connect_db():
     global pool
@@ -289,3 +380,8 @@ async def upsert_user(tg_id: int, username: str | None, name: str):
     async with db().acquire() as conn:
         await conn.execute("""INSERT INTO users(telegram_id, username, display_name) VALUES($1,$2,$3)
         ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username, display_name=EXCLUDED.display_name""", tg_id, username, name)
+    try:
+        from games.empire.crime import grant_starter_pack
+        await grant_starter_pack(int(tg_id))
+    except Exception:
+        pass
