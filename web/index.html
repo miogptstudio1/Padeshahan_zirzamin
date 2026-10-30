@@ -12,7 +12,7 @@
   --line:rgba(80,120,170,.22);--text:#eef4ff;--muted:#8ea3bc;
   --gold:#e8c56a;--cyan:#4ecbff;--green:#3dd68c;--red:#ff6b7a;--purple:#a78bfa;
   --safe-b:env(safe-area-inset-bottom,0px);--nav-h:64px;
-  --r:16px;--shadow:0 12px 40px rgba(0,0,0,.35);
+  --r:16px;--shadow:0 12px 40px rgba(0,0,0,.35);--glow:0 0 24px rgba(232,197,106,.15);
   font-family:Tahoma,"Segoe UI",system-ui,sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -38,7 +38,7 @@ body{
   background:var(--card2);border:1px solid var(--line);font-size:12px;color:var(--muted)
 }
 .pill b{color:var(--text)}
-.hero{
+.hero{box-shadow:var(--shadow),var(--glow);
   background:linear-gradient(135deg,#16304f 0%,#0e1f36 50%,#152038 100%);
   border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px;
   box-shadow:var(--shadow);position:relative;overflow:hidden
@@ -181,8 +181,13 @@ body{
         <button class="btn primary" id="btnDaily">🎁 پاداش روزانه</button>
         <button class="btn" id="btnWork">🧰 کار</button>
         <button class="btn" onclick="switchTab('map')">🗺️ قلمروها</button>
-        <button class="btn" onclick="switchTab('chat')">💬 چت</button>
+        <button class="btn" onclick="switchTab('crime')">🕶️ زیرزمین</button>
       </div>
+    </div>
+    <div class="panel" id="hideoutPanel">
+      <h2>🏚️ پناهگاه من</h2>
+      <div id="hideoutBox" class="muted">در حال بارگذاری…</div>
+      <button class="btn gold block" id="btnUpgradeHideout" style="margin-top:10px">⬆️ ارتقا پناهگاه</button>
     </div>
     <div class="panel">
       <h2>🎖️ پیشرفت <span class="chip" id="levelChip">سطح</span></h2>
@@ -347,6 +352,28 @@ body{
     </div>
   </section>
 
+  <!-- CRIME / UNDERWORLD -->
+  <section class="page" id="page-crime">
+    <div class="panel">
+      <h2>🕶️ دنیای زیرزمین</h2>
+      <p class="muted">حمله به بازیکن‌ها، جیب‌بری، قاچاق و باج‌گیری. هر بازیکن از اول یک پناهگاه کوچک داره.</p>
+      <div id="crimeHideout" class="muted" style="margin:10px 0">—</div>
+      <div class="field"><label>آیدی هدف (حمله)</label>
+        <input id="attackTargetId" inputmode="numeric" placeholder="123456789" style="direction:ltr">
+      </div>
+      <div class="grid2">
+        <button class="btn danger" id="btnAttackPlayer">⚔️ حمله</button>
+        <button class="btn" id="btnSmuggle">🕶️ قاچاق</button>
+      </div>
+      <p class="muted" style="margin-top:10px">در ربات: ریپلای + <code>حمله</code> یا <code>جیب‌بری</code> / <code>باج</code></p>
+    </div>
+    <div class="panel">
+      <h2>📜 آخرین نبردها</h2>
+      <div id="crimeLog" class="muted">از ربات با دستور «حمله» بازی کن؛ نتیجه اینجا هم بعد از تازه‌سازی دیده می‌شه.</div>
+      <button class="btn block" id="btnRefreshCrime" style="margin-top:8px">↻ تازه‌سازی</button>
+    </div>
+  </section>
+
   <!-- CHAT -->
   <section class="page" id="page-chat">
     <div class="panel">
@@ -369,6 +396,7 @@ body{
   <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="ico">🏠</span>خانه</button>
   <button class="nav-item" data-tab="map" onclick="switchTab('map')"><span class="ico">🗺️</span>قلمرو</button>
   <button class="nav-item" data-tab="army" onclick="switchTab('army')"><span class="ico">⚔️</span>ارتش</button>
+  <button class="nav-item" data-tab="crime" onclick="switchTab('crime')"><span class="ico">🕶️</span>خلاف</button>
   <button class="nav-item" data-tab="ally" onclick="switchTab('ally')"><span class="ico">🤝</span>اتحاد</button>
   <button class="nav-item" data-tab="chat" onclick="switchTab('chat')"><span class="ico">💬</span>چت</button>
   <button class="nav-item" data-tab="admin" id="navAdmin" style="display:none" onclick="switchTab('admin')"><span class="ico">🛡️</span>مدیر</button>
@@ -422,6 +450,7 @@ body{
     } else {
       stopChatPolling();
     }
+    if (name==='crime') loadHideout();
   }
   window.switchTab = switchTab;
 
@@ -457,25 +486,31 @@ body{
     });
     const data = await res.json().catch(()=>({detail:'پاسخ نامعتبر'}));
     if (!res.ok){
-      if (res.status===403 && data.detail && typeof data.detail==='object' && Array.isArray(data.detail.channels)){
+      const detail = data && data.detail;
+      if (res.status===403 && detail && typeof detail==='object' && Array.isArray(detail.channels)){
         const box = document.getElementById('gateChannels');
-        box.innerHTML = '';
-        const icons = ['📢', '🌿'];
-        data.detail.channels.forEach((ch, i)=>{
-          const a = document.createElement('a');
-          a.className = 'btn gold';
-          a.style.textDecoration = 'none';
-          a.target = '_blank';
-          a.rel = 'noopener';
-          a.href = ch.url || ('https://t.me/'+(ch.username||'').replace('@',''));
-          const label = ch.title || ch.username || 'کانال';
-          a.innerHTML = (icons[i] || '📢') + ' عضویت در ' + label;
-          box.appendChild(a);
-        });
-        document.getElementById('membershipGate').classList.add('show');
+        if (box) {
+          box.innerHTML = '';
+          const icons = ['📢', '🌿'];
+          detail.channels.forEach((ch, i)=>{
+            const a = document.createElement('a');
+            a.className = 'btn gold';
+            a.style.textDecoration = 'none';
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.href = ch.url || ('https://t.me/'+(ch.username||'').replace('@',''));
+            const label = ch.title || ch.username || 'کانال';
+            a.innerHTML = (icons[i] || '📢') + ' عضویت در ' + label;
+            box.appendChild(a);
+          });
+        }
+        const gate = document.getElementById('membershipGate');
+        if (gate) gate.classList.add('show');
         throw new Error('membership_gate');
       }
-      throw new Error(typeof data.detail==='string'?data.detail:'خطا');
+      if (typeof detail === 'string') throw new Error(detail);
+      if (detail && typeof detail === 'object' && detail.message) throw new Error(String(detail.message));
+      throw new Error('خطا (' + res.status + ')');
     }
     return data;
   }
@@ -510,37 +545,51 @@ body{
   });
 
   async function refresh(){
-    document.getElementById('connPill').textContent = '⏳ اتصال…';
+    const pill = document.getElementById('connPill');
+    if (pill) pill.textContent = '⏳ اتصال…';
     try {
-      const [m, cts, wars, aWars, season] = await Promise.all([
-        api('/api/me'),
-        api('/api/empire/cities'),
-        api('/api/empire/wars'),
-        api('/api/empire/alliance/wars'),
-        api('/api/empire/alliance/season')
-      ]);
-      me = m; cities = cts;
-      document.getElementById('connPill').innerHTML = '<b>آنلاین</b>';
-      document.getElementById('heroTitle').textContent = m.display_name || m.username || 'فرمانروا';
-      document.getElementById('heroSub').textContent = 'پادشاهان زیرزمین · فرماندهی آنلاین';
-      document.getElementById('heroStats').innerHTML = [
+      // /api/me is required; other endpoints are best-effort so one failure doesn't blank the whole app
+      const m = await api('/api/me');
+      me = m;
+      if (pill) pill.innerHTML = '<b>آنلاین</b>';
+      const ht = document.getElementById('heroTitle');
+      const hs = document.getElementById('heroSub');
+      const hst = document.getElementById('heroStats');
+      if (ht) ht.textContent = m.display_name || m.username || 'فرمانروا';
+      if (hs) hs.textContent = 'پادشاهان زیرزمین · فرماندهی آنلاین';
+      if (hst) hst.innerHTML = [
         ['💰', fa(m.coins), 'سکه'],
         ['⚔️', fa(m.soldiers), 'سرباز'],
         ['🗺️', fa(m.cities_owned), 'قلمرو'],
       ].map(([i,v,l])=>`<div class="stat"><div class="ico">${i}</div><div class="val">${v}</div><div class="lbl">${l}</div></div>`).join('');
 
-      renderCities(cts, m);
-      populateWarSelects(cts, m);
-      renderWars(wars);
-      renderAllianceWars(aWars);
-      renderSeason(season);
-      await Promise.all([loadProgression(), loadEquipment(), loadAlliance(), loadStaffPanel()]);
+      const soft = (p) => api(p).catch((e)=>{ if (e.message==='membership_gate') throw e; return null; });
+      const [cts, wars, aWars, season] = await Promise.all([
+        soft('/api/empire/cities'),
+        soft('/api/empire/wars'),
+        soft('/api/empire/alliance/wars'),
+        soft('/api/empire/alliance/season'),
+      ]);
+      cities = cts || [];
+      if (cts) { renderCities(cts, m); populateWarSelects(cts, m); }
+      if (wars) renderWars(wars);
+      if (aWars) renderAllianceWars(aWars);
+      if (season) renderSeason(season);
+      await Promise.all([
+        loadProgression().catch(()=>{}),
+        loadEquipment().catch(()=>{}),
+        loadAlliance().catch(()=>{}),
+        loadStaffPanel().catch(()=>{}),
+        loadHideout().catch(()=>{}),
+      ]);
     } catch(e){
-      document.getElementById('connPill').textContent = '🔴 قطع';
+      if (pill) pill.textContent = '🔴 قطع';
       if (e.message!=='membership_gate'){
-        document.getElementById('heroTitle').textContent = 'اتصال برقرار نشد';
-        document.getElementById('heroSub').textContent = e.message;
-        toast(e.message,'lose');
+        const ht = document.getElementById('heroTitle');
+        const hs = document.getElementById('heroSub');
+        if (ht) ht.textContent = 'اتصال برقرار نشد';
+        if (hs) hs.textContent = e.message || 'خطای ناشناخته';
+        toast(e.message || 'خطا','lose');
       }
     }
   }
@@ -794,9 +843,34 @@ body{
     }
   }
 
+  async function loadHideout(){
+    try{
+      const h = await api('/api/crime/hideout');
+      const box = document.getElementById('hideoutBox');
+      const ch = document.getElementById('crimeHideout');
+      const hh = h.hideout||h;
+      const html = '⭐ سطح '+(hh.level||1)+' · 🛡️ دفاع '+(hh.defense||0)+' · ⚔️ قدرت '+fa(h.power);
+      if(box) box.innerHTML = '<b>'+esc(hh.name||'پناهگاه')+'</b><br>'+html;
+      if(ch) ch.innerHTML = html;
+    }catch(e){
+      if(e.message!=='membership_gate'){
+        const b=document.getElementById('hideoutBox');
+        if(b) b.textContent=e.message||'خطا';
+      }
+    }
+  }
+
   // Bindings
   document.getElementById('btnDaily').addEventListener('click',()=>act('/api/empire/daily','POST',null,'پاداش روزانه…'));
   document.getElementById('btnWork').addEventListener('click',()=>act('/api/empire/work','POST',null,'کار…'));
+  document.getElementById('btnUpgradeHideout')?.addEventListener('click',()=>act('/api/crime/hideout/upgrade','POST',null,'ارتقا…').then(()=>loadHideout()));
+  document.getElementById('btnSmuggle')?.addEventListener('click',()=>act('/api/crime/smuggle','POST',null,'قاچاق…').then(()=>refresh()));
+  document.getElementById('btnAttackPlayer')?.addEventListener('click',()=>{
+    const tid = Number(document.getElementById('attackTargetId')?.value||0);
+    if(!tid){ toast('آیدی هدف را وارد کن','lose'); return; }
+    act('/api/crime/attack','POST',{target_id:tid},'حمله…').then(()=>refresh());
+  });
+  document.getElementById('btnRefreshCrime')?.addEventListener('click',()=>loadHideout());
   document.getElementById('btnRecruit').addEventListener('click',()=>act('/api/empire/recruit','POST',{count:5},'استخدام…'));
   document.getElementById('declareWar').addEventListener('click',()=>{
     const a=document.getElementById('attackCity').value, t=document.getElementById('targetCity').value;
@@ -964,14 +1038,17 @@ body{
   };
   window.switchTab = switchTab;
 
-  if (initData) refresh();
-  else document.getElementById("navAdmin").style.display="none";
-  // staff boot
-
-  else {
-    document.getElementById('connPill').textContent = '🔐 ربات';
-    document.getElementById('heroTitle').textContent = 'از ربات باز کن';
-    document.getElementById('heroSub').textContent = 'دکمه وب‌اپ داخل ربات تلگرام را بزن.';
+  if (initData) {
+    refresh().catch(()=>{});
+  } else {
+    const nav = document.getElementById('navAdmin');
+    if (nav) nav.style.display = 'none';
+    const pill = document.getElementById('connPill');
+    const title = document.getElementById('heroTitle');
+    const sub = document.getElementById('heroSub');
+    if (pill) pill.textContent = '🔐 ربات';
+    if (title) title.textContent = 'از ربات باز کن';
+    if (sub) sub.textContent = 'دکمه وب‌اپ داخل ربات تلگرام را بزن.';
   }
 })();
 </script>
