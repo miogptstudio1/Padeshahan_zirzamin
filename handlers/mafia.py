@@ -124,7 +124,8 @@ async def send_night_prompts(bot, room_id: int):
             await bot.send_message(p['telegram_id'],f'🌙 نوبت شب است. نقش تو: {service.ROLE_NAMES[p["role"]]}\nهدف را انتخاب کن:',reply_markup=kb)
         except Exception: pass
 
-@router.message(Command('mafia_create'))
+@router.message(Command('mafia_create', 'مافیا_بساز'))
+@router.message(F.text.in_({'مافیا بساز', 'ساخت مافیا', 'اتاق مافیا'}))
 async def create(message: Message):
     if not message.chat or message.chat.type=='private':
         await message.answer('این دستور را داخل گروه بازی بفرست.'); return
@@ -146,7 +147,8 @@ async def join_callback(call: CallbackQuery):
         if call.message: await call.message.reply(f'✅ {user.full_name} ثبت‌نام شد. تعداد: {count}')
     except ValueError as e: await call.answer(str(e),show_alert=True)
 
-@router.message(Command('mafia_join'))
+@router.message(Command('mafia_join', 'مافیا_جوین'))
+@router.message(F.text.in_({'مافیا جوین', 'جوین مافیا', 'پیوستن مافیا'}))
 async def join_command(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('اتاقی برای ثبت‌نام پیدا نشد.'); return
@@ -155,7 +157,8 @@ async def join_command(message: Message):
         await message.answer(f'✅ ثبت‌نام شدی. تعداد بازیکنان: {count}')
     except ValueError as e: await message.answer(str(e))
 
-@router.message(Command('mafia_status'))
+@router.message(Command('mafia_status', 'مافیا_وضعیت'))
+@router.message(F.text.in_({'مافیا وضعیت', 'وضعیت مافیا'}))
 async def status(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('در این گروه اتاق فعالی وجود ندارد.'); return
@@ -165,7 +168,8 @@ async def status(message: Message):
     lines += [f'{"🟢" if p["alive"] else "⚫"} {p["display_name"]}' for p in players]
     await message.answer('\n'.join(lines))
 
-@router.message(Command('mafia_start'))
+@router.message(Command('mafia_start', 'مافیا_شروع'))
+@router.message(F.text.in_({'مافیا شروع', 'شروع مافیا'}))
 async def start(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('اول با /mafia_create اتاق بساز.'); return
@@ -186,7 +190,8 @@ async def start(message: Message):
             await arm_timer(message.bot,room['id'],chat_id,'intro_day')
     except ValueError as e: await message.answer(str(e))
 
-@router.message(Command('mafia_night'))
+@router.message(Command('mafia_night', 'مافیا_شب'))
+@router.message(F.text.in_({'مافیا شب', 'شب مافیا'}))
 async def night(message: Message):
     if message.chat.type!='private': await message.answer('برای دیدن انتخاب‌های شب، این دستور را در خصوصی ربات بفرست.'); return
     async with db().acquire() as conn:
@@ -352,7 +357,8 @@ async def reports(message: Message):
         lines.append(f"#{item['id']} | کاربر {item['actor_id']} | اتاق {details.get('room_id')} | {details.get('details','')[:220]}")
     await message.answer('\n'.join(lines))
 
-@router.message(Command('mafia_cancel'))
+@router.message(Command('mafia_cancel', 'مافیا_لغو'))
+@router.message(F.text.in_({'مافیا لغو', 'لغو مافیا'}))
 async def cancel(message: Message):
     if message.chat.type == 'private':
         await message.answer('این دستور را در گروه اتاق بفرست.')
@@ -369,7 +375,8 @@ async def cancel(message: Message):
     except ValueError as e:
         await message.answer(str(e))
 
-@router.message(Command('mafia_rules'))
+@router.message(Command('mafia_rules', 'مافیا_قوانین'))
+@router.message(F.text.in_({'مافیا قوانین', 'قوانین مافیا'}))
 async def rules(message: Message):
     await message.answer(
         '📜 قوانین فعلی مافیای پادشاهان زیرزمین\n'

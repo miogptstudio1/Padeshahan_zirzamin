@@ -2,6 +2,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from games.empire import service
+from games.events import service as event_service
 from games.empire.engine import ASSETS, CITIES, MAX_ASSET_LEVEL, MAX_DEFENSE_LEVEL, hourly_income, SOLDIER_RECRUIT_COST, MAX_SOLDIERS, army_power_bonus
 
 router = Router()
@@ -48,6 +49,10 @@ async def empire_menu(message: Message):
 async def empire_daily(message: Message):
     try:
         reward, balance = await service.claim_daily(message.from_user.id)
+        try:
+            await event_service.add_score(message.from_user.id, 10, 'economy')
+        except Exception:
+            pass
         await message.answer(f'🎁 پاداش روزانه: +{reward} سکه\n💰 موجودی: {balance}')
     except ValueError as exc:
         await message.answer(str(exc))
@@ -58,18 +63,33 @@ async def empire_daily(message: Message):
 async def empire_work(message: Message):
     try:
         reward, balance = await service.work(message.from_user.id)
+        try:
+            await event_service.add_score(message.from_user.id, 5, 'economy')
+        except Exception:
+            pass
         await message.answer(f'🧰 {reward} سکه گرفتی!\n💰 موجودی: {balance}')
     except ValueError as exc:
         await message.answer(str(exc))
 
 
-@router.message(Command('empire_buy'))
+@router.message(Command('empire_buy', 'خرید_کسب'))
+@router.message(F.text.regexp(r'^(?:خرید کسب|خرید کارگاه|خرید باشگاه|خرید کارخانه|/empire_buy)\s*(.*)$'))
 async def empire_buy(message: Message):
-    args = (message.text or '').split(maxsplit=1)
-    if len(args) != 2 or args[1].strip().lower() not in ALIASES:
-        await message.answer('فرمت: /empire_buy workshop یا club یا factory\nفارسی: کارگاه، باشگاه، کارخانه')
+    text = (message.text or '').strip()
+    for pref in ('/empire_buy', 'خرید کسب', 'خرید کارگاه', 'خرید باشگاه', 'خرید کارخانه', 'خرید_کسب'):
+        if text.startswith(pref):
+            text = text[len(pref):].strip()
+            break
+    # default workshop if bare «خرید کارگاه»
+    raw = text.strip().lower() or 'workshop'
+    if raw not in ALIASES:
+        # try last token
+        parts = (message.text or '').split()
+        raw = parts[-1].lower() if parts else ''
+    if raw not in ALIASES:
+        await message.answer('فرمت: خرید کسب کارگاه|باشگاه|کارخانه\nیا /empire_buy workshop')
         return
-    key = ALIASES[args[1].strip().lower()]
+    key = ALIASES[raw]
     try:
         name, level, cost, balance = await service.buy_or_upgrade(message.from_user.id, key)
         await message.answer(f'🏗️ {name} ارتقا یافت!\nسطح: {level}/{MAX_ASSET_LEVEL}\nهزینه: {cost}\nدرآمد ساعتی: {hourly_income(key, level)}\n💰 موجودی: {balance}')
@@ -77,20 +97,30 @@ async def empire_buy(message: Message):
         await message.answer(str(exc))
 
 
-@router.message(Command('empire_collect'))
+@router.message(Command('empire_collect', 'جمع_درآمد'))
+@router.message(F.text.regexp(r'^(?:جمع درآمد|جمع‌آوری|/empire_collect)\s*(.*)$'))
 async def empire_collect(message: Message):
-    args = (message.text or '').split(maxsplit=1)
-    if len(args) != 2 or args[1].strip().lower() not in ALIASES:
-        await message.answer('فرمت: /empire_collect workshop یا club یا factory')
+    text = (message.text or '').strip()
+    for pref in ('/empire_collect', 'جمع درآمد', 'جمع‌آوری', 'جمع_درآمد'):
+        if text.startswith(pref):
+            text = text[len(pref):].strip()
+            break
+    raw = text.strip().lower() or 'workshop'
+    if raw not in ALIASES:
+        parts = (message.text or '').split()
+        raw = parts[-1].lower() if parts else ''
+    if raw not in ALIASES:
+        await message.answer('فرمت: جمع درآمد کارگاه|باشگاه|کارخانه')
         return
     try:
-        name, amount, balance = await service.collect_income(message.from_user.id, ALIASES[args[1].strip().lower()])
+        name, amount, balance = await service.collect_income(message.from_user.id, ALIASES[raw])
         await message.answer(f'💵 درآمد {name}: +{amount} سکه\n💰 موجودی: {balance}')
     except ValueError as exc:
         await message.answer(str(exc))
 
 
-@router.message(Command('empire_assets'))
+@router.message(Command('empire_assets', 'دارایی'))
+@router.message(F.text.in_({'دارایی', 'دارایی‌ها', 'دارایی ها'}))
 async def empire_assets(message: Message):
     rows = await service.assets_for(message.from_user.id)
     if not rows:
@@ -103,7 +133,8 @@ async def empire_assets(message: Message):
     await message.answer('\n'.join(lines))
 
 
-@router.message(Command('empire_top'))
+@router.message(Command('empire_top', 'رتبه_ثروت'))
+@router.message(F.text.in_({'رتبه ثروت', 'ثروتمندترین', 'لیدربورد ثروت'}))
 async def empire_top(message: Message):
     rows = await service.leaderboard(10)
     if not rows:
@@ -113,7 +144,8 @@ async def empire_top(message: Message):
     await message.answer('\n'.join(lines))
 
 
-@router.message(Command('empire_cities'))
+@router.message(Command('empire_cities', 'قلمروها', 'نقشه'))
+@router.message(F.text.in_({'قلمروها', 'نقشه', 'نقشه قلمرو'}))
 async def empire_cities(message: Message):
     rows = await service.cities_list()
     lines = ['🗺️ نقشهٔ قلمروها (مالیات هر ۶ ساعت):']
@@ -189,7 +221,8 @@ async def empire_city_top(message: Message):
     await message.answer('\n'.join(lines))
 
 
-@router.message(Command('empire_army'))
+@router.message(Command('empire_army', 'ارتش'))
+@router.message(F.text.in_({'ارتش', 'سربازان'}))
 async def empire_army(message: Message):
     army = await service.army_for(message.from_user.id)
     soldiers = army['soldiers']
@@ -310,7 +343,8 @@ async def empire_war(message: Message):
         await message.answer(str(exc))
 
 
-@router.message(Command('empire_wars'))
+@router.message(Command('empire_wars', 'جنگ‌ها', 'جنگها'))
+@router.message(F.text.in_({'جنگ‌ها', 'جنگها', 'جنگ های من'}))
 async def empire_wars(message: Message):
     rows = await service.pending_wars(message.from_user.id)
     if not rows:
