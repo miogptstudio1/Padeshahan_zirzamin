@@ -32,6 +32,9 @@ def _build_dispatcher():
     from handlers.empire import router as empire_router
     from handlers.admin import router as admin_router
     from handlers.shop import router as shop_router
+    from handlers.events import router as events_router
+    from handlers.family import router as family_router
+    from handlers.crime import router as crime_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -40,6 +43,9 @@ def _build_dispatcher():
     dp.include_router(main_router)
     dp.include_router(admin_router)
     dp.include_router(shop_router)
+    dp.include_router(events_router)
+    dp.include_router(family_router)
+    dp.include_router(crime_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -277,6 +283,21 @@ async def me(user: dict = Depends(current_user)):
     user_id = int(user["id"])
     async with db().acquire() as conn:
         row = await conn.fetchrow("SELECT telegram_id,display_name,coins,games_played,wins FROM users WHERE telegram_id=$1", user_id)
+    if not row:
+        # current_user already upserts; rare race — return safe defaults
+        name = " ".join(x for x in (user.get("first_name", ""), user.get("last_name", "")) if x).strip() or str(user_id)
+        return {
+            "telegram_id": user_id,
+            "name": name,
+            "display_name": name,
+            "coins": 0,
+            "games_played": 0,
+            "wins": 0,
+            "soldiers": 0,
+            "army_power": 0,
+            "cities_owned": 0,
+            "staff": await staff_service.staff_profile(user_id),
+        }
     army = await empire_service.army_for(user_id)
     cities = await empire_service.my_cities(user_id)
     staff = await staff_service.staff_profile(user_id)
@@ -293,6 +314,49 @@ async def me(user: dict = Depends(current_user)):
         "staff": staff,
     }
 
+
+
+
+@app.get("/api/crime/hideout")
+async def api_hideout(user: dict = Depends(current_user)):
+    from games.empire import crime as crime_service
+    return await crime_service.hideout_status(int(user["id"]))
+
+
+@app.post("/api/crime/attack")
+async def api_attack(body: dict, user: dict = Depends(current_user)):
+    from games.empire import crime as crime_service
+    target = body.get("target_id") or body.get("telegram_id")
+    if not target:
+        raise HTTPException(status_code=400, detail="target_id لازم است")
+    try:
+        result = await crime_service.attack_player(int(user["id"]), int(target))
+        result["message"] = "حمله موفق" if result.get("won") else "حمله شکست خورد"
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/crime/smuggle")
+async def api_smuggle(user: dict = Depends(current_user)):
+    from games.empire import crime as crime_service
+    try:
+        r = await crime_service.smuggle(int(user["id"]))
+        r["message"] = "قاچاق موفق" if r.get("success") else "قاچاق شکست خورد"
+        return r
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/crime/hideout/upgrade")
+async def api_hideout_upgrade(user: dict = Depends(current_user)):
+    from games.empire import crime as crime_service
+    try:
+        r = await crime_service.upgrade_hideout(int(user["id"]))
+        r["message"] = "پناهگاه ارتقا یافت"
+        return r
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.get("/api/empire/equipment")
 async def get_equipment(user: dict = Depends(current_user)):
