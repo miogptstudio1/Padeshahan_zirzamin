@@ -1,4 +1,4 @@
-"""فروشگاه تجهیزات — دستورات فارسی و انگلیسی."""
+"""فروشگاه تجهیزات — دستورات فارسی/انگلیسی + دکمه‌های شیشه‌ای."""
 from __future__ import annotations
 import uuid
 
@@ -11,18 +11,31 @@ from games.empire.equipment_rules import ITEMS, BOX_PRICE
 
 router = Router()
 
-# نام فارسی/انگلیسی → کلید آیتم
 ITEM_ALIASES: dict[str, str] = {}
 for key, meta in ITEMS.items():
-    ITEM_ALIASES[key] = key
-    ITEM_ALIASES[meta["name"]] = key
-    ITEM_ALIASES[meta["name"].replace("ٔ", "")] = key
+    ITEM_ALIASES[key.lower()] = key
+    ITEM_ALIASES[str(meta.get("name", "")).lower()] = key
+    for alias in meta.get("aliases", []) if isinstance(meta.get("aliases"), list) else []:
+        ITEM_ALIASES[str(alias).lower()] = key
+# common Persian names
+ITEM_ALIASES.update({
+    "شمشیر چوبی": "wood_sword",
+    "شمشیر آهنی": "iron_sword",
+    "تیغه سایه": "shadow_blade",
+    "زره چرمی": "leather_armor",
+    "زره زنجیری": "chain_armor",
+})
 
 
-def _owner_ok(call: CallbackQuery, owner_id: int) -> bool:
-    if int(call.from_user.id) != int(owner_id):
-        return False
-    return True
+def _resolve_item(text: str) -> str | None:
+    t = (text or "").strip().lower()
+    if t in ITEM_ALIASES:
+        return ITEM_ALIASES[t]
+    # fuzzy: contains
+    for k, v in ITEM_ALIASES.items():
+        if k and (k in t or t in k):
+            return v
+    return None
 
 
 def shop_keyboard(owner_id: int) -> InlineKeyboardMarkup:
@@ -30,110 +43,168 @@ def shop_keyboard(owner_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📋 لیست کالا", callback_data=f"shop:{uid}:list"),
-            InlineKeyboardButton(text="🎒 موجودی من", callback_data=f"shop:{uid}:inv"),
+            InlineKeyboardButton(text="🎒 موجودی", callback_data=f"shop:{uid}:inv"),
         ],
-        [
-            InlineKeyboardButton(text=f"🎁 صندوق ({BOX_PRICE} سکه)", callback_data=f"shop:{uid}:box"),
-        ],
+        [InlineKeyboardButton(text=f"🎁 صندوق ({BOX_PRICE})", callback_data=f"shop:{uid}:box")],
+        [InlineKeyboardButton(text="🛒 منوی فروشگاه", callback_data=f"shop:{uid}:home")],
     ])
 
 
+def inventory_keyboard(owner_id: int, inventory: list[dict]) -> InlineKeyboardMarkup:
+    uid = int(owner_id)
+    rows = []
+    for row in inventory[:12]:
+        key = row.get("key") or row.get("item_key")
+        if not key:
+            continue
+        name = row.get("name") or ITEMS.get(key, {}).get("name", key)
+        qty = row.get("quantity", 1)
+        rows.append([
+            InlineKeyboardButton(
+                text=f"🔧 تجهیز {name} (×{qty})",
+                callback_data=f"shop:{uid}:eq:{key}",
+            )
+        ])
+    rows.append([
+        InlineKeyboardButton(text="📋 فروشگاه", callback_data=f"shop:{uid}:list"),
+        InlineKeyboardButton(text=f"🎁 صندوق", callback_data=f"shop:{uid}:box"),
+    ])
+    rows.append([InlineKeyboardButton(text="🔄 تازه‌سازی موجودی", callback_data=f"shop:{uid}:inv")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def catalog_keyboard(owner_id: int) -> InlineKeyboardMarkup:
+    uid = int(owner_id)
+    rows = []
+    for key, meta in list(ITEMS.items())[:12]:
+        price = meta.get("price", "?")
+        name = meta.get("name", key)
+        rows.append([
+            InlineKeyboardButton(
+                text=f"🛒 {name} — {price}🪙",
+                callback_data=f"shop:{uid}:buy:{key}",
+            )
+        ])
+    rows.append([
+        InlineKeyboardButton(text="🎒 موجودی", callback_data=f"shop:{uid}:inv"),
+        InlineKeyboardButton(text=f"🎁 صندوق ({BOX_PRICE})", callback_data=f"shop:{uid}:box"),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _owner_ok(call: CallbackQuery, owner_id: int) -> bool:
+    return int(call.from_user.id) == int(owner_id)
+
+
 def _format_catalog() -> str:
-    weapons = [v for v in ITEMS.values() if v["kind"] == "weapon"]
-    armors = [v for v in ITEMS.values() if v["kind"] == "armor"]
-    lines = ["🛒 <b>فروشگاه پادشاهان</b>\n", "⚔️ <b>سلاح</b>"]
-    for it in weapons:
+    lines = ["🛒 <b>فروشگاه تجهیزات</b>\n"]
+    for key, meta in ITEMS.items():
         lines.append(
-            f"• {it['name']} — {it['price']:,} سکه | AT:{it['attack']} | {it['rarity']}"
+            f"• <b>{meta.get('name', key)}</b> — {meta.get('price', '?')} سکه"
+            f" | AT{meta.get('attack', 0)} DF{meta.get('defense', 0)}"
+            f"\n  خرید: <code>خرید {meta.get('name', key)}</code>"
         )
-    lines.append("\n🛡️ <b>زره</b>")
-    for it in armors:
-        lines.append(
-            f"• {it['name']} — {it['price']:,} سکه | DEF:{it['defense']} | {it['rarity']}"
-        )
-    lines.append(
-        f"\n🎁 صندوق شانس: {BOX_PRICE:,} سکه\n\n"
-        f"خرید: <code>خرید شمشیر چوبی</code>\n"
-        f"یا: <code>/shop_buy wood_sword</code>\n"
-        f" تجهیز: <code>تجهیز شمشیر آهنی</code>"
-    )
+    lines.append(f"\n🎁 صندوق شانس: {BOX_PRICE} سکه — <code>صندوق</code>")
     return "\n".join(lines)
 
 
-@router.message(Command("shop", "فروشگاه", "مغازه", "store"))
-@router.message(F.text.in_({"فروشگاه", "مغازه", "شاپ", "shop", "فروشگاه تجهیزات"}))
-async def shop_menu(message: Message):
-    await message.answer(
-        "🛒 <b>فروشگاه تجهیزات</b>\n\n"
-        "سلاح و زره بخر، تجهیز کن، یا صندوق شانس باز کن.\n"
-        "همه قیمت‌ها با سکهٔ درون‌بازی است.",
-        reply_markup=shop_keyboard(message.from_user.id),
-        parse_mode="HTML",
+def _format_inventory(data: dict) -> str:
+    inv = data.get("inventory") or []
+    equipped = data.get("equipped") or {}
+    stats = data.get("stats") or {}
+    lines = ["🎒 <b>موجودی تجهیزات</b>\n"]
+    if not inv:
+        lines.append("خالی است. از فروشگاه خرید کن.")
+    else:
+        for row in inv:
+            key = row.get("key") or row.get("item_key")
+            name = row.get("name") or ITEMS.get(key, {}).get("name", key)
+            qty = row.get("quantity", 1)
+            atk = ITEMS.get(key, {}).get("attack", 0)
+            df = ITEMS.get(key, {}).get("defense", 0)
+            lines.append(f"• {name} ×{qty}  (ATK {atk} / DEF {df})")
+    w = equipped.get("weapon")
+    a = equipped.get("armor")
+    lines.append(
+        f"\n🔧 <b>فعال:</b>\n"
+        f"⚔️ سلاح: {ITEMS.get(w, {}).get('name', w or '—')}\n"
+        f"🛡️ زره: {ITEMS.get(a, {}).get('name', a or '—')}\n"
+        f"📊 قدرت تجهیز: ATK {stats.get('attack', 0)} · DEF {stats.get('defense', 0)}"
     )
-    await message.answer(_format_catalog(), parse_mode="HTML")
+    lines.append("\nروی دکمه زیر بزن تا تجهیز کنی 👇")
+    return "\n".join(lines)
+
+
+def _format_box_result(result: dict) -> str:
+    reward = result.get("reward") or result
+    rtype = reward.get("type")
+    if rtype == "coins":
+        return f"🎁 صندوق: 🪙 +{reward.get('amount', 0)} سکه\nموجودی: {result.get('coins', '—')}"
+    if rtype == "item":
+        key = reward.get("item_key") or reward.get("key")
+        name = reward.get("name") or ITEMS.get(key, {}).get("name", key)
+        return f"🎁 صندوق: آیتم <b>{name}</b>\nموجودی سکه: {result.get('coins', '—')}"
+    return f"🎁 صندوق باز شد: {result}"
+
+
+@router.message(Command("shop", "فروشگاه", "مغازه", "store"))
+@router.message(F.text.in_({"فروشگاه", "مغازه", "شاپ", "store", "shop"}))
+async def shop_home(message: Message):
+    await message.answer(
+        "🛒 <b>فروشگاه پادشاهان زیرزمین</b>\n\n"
+        "با دکمه‌های زیر خرید کن، موجودی ببین یا صندوق باز کن.\n"
+        "دستور متنی: <code>خرید نام‌کالا</code> · <code>تجهیز نام</code> · <code>موجودی</code>",
+        parse_mode="HTML",
+        reply_markup=catalog_keyboard(message.from_user.id),
+    )
 
 
 @router.message(Command("shop_buy", "خرید"))
 @router.message(F.text.regexp(r"^(?:خرید|/shop_buy|/خرید)\s+(.+)$"))
 async def shop_buy(message: Message):
-    parts = (message.text or "").split(maxsplit=1)
-    if len(parts) < 2:
-        await message.answer(
-            "مثال: <code>خرید شمشیر چوبی</code>\nیا <code>/shop_buy wood_sword</code>",
-            parse_mode="HTML",
-        )
-        return
-    raw = parts[1].strip()
-    # optional quantity at end: خرید شمشیر چوبی 2
-    tokens = raw.rsplit(maxsplit=1)
-    qty = 1
-    name = raw
-    if len(tokens) == 2 and tokens[1].isdigit():
-        qty = max(1, min(10, int(tokens[1])))
-        name = tokens[0].strip()
-    key = ITEM_ALIASES.get(name) or ITEM_ALIASES.get(name.lower())
+    text = message.text or ""
+    for pref in ("/shop_buy", "/خرید", "خرید"):
+        if text.startswith(pref):
+            text = text[len(pref):].strip()
+            break
+    key = _resolve_item(text)
     if not key:
-        # try match without spaces nuances
-        for alias, k in ITEM_ALIASES.items():
-            if alias.replace(" ", "") == name.replace(" ", ""):
-                key = k
-                break
-    if not key:
-        await message.answer("❌ کالا پیدا نشد. با «فروشگاه» لیست رو ببین.")
+        await message.answer("کالا پیدا نشد. بنویس: فروشگاه", reply_markup=catalog_keyboard(message.from_user.id))
         return
     try:
-        result = await equipment_service.buy(message.from_user.id, key, qty)
+        result = await equipment_service.buy(message.from_user.id, key, 1)
         await message.answer(
-            f"✅ خرید انجام شد: <b>{ITEMS[key]['name']}</b> ×{qty}\n"
-            f"🪙 موجودی: {result.get('coins', result.get('balance', '—'))}",
-            parse_mode="HTML",
+            f"✅ خرید {result.get('item')} ×{result.get('quantity', 1)}\n"
+            f"هزینه: {result.get('cost')} · 🪙 {result.get('coins')}",
+            reply_markup=inventory_keyboard(
+                message.from_user.id,
+                (await equipment_service.dashboard(message.from_user.id)).get("inventory") or [],
+            ),
         )
     except ValueError as e:
         await message.answer(f"❌ {e}")
     except Exception as e:
-        # service may return dict without raising
-        await message.answer(f"❌ خطا در خرید: {e}")
+        await message.answer(f"❌ {e}")
 
 
 @router.message(Command("equip", "تجهیز", "پوشیدن"))
 @router.message(F.text.regexp(r"^(?:تجهیز|پوشیدن|/equip)\s+(.+)$"))
 async def shop_equip(message: Message):
-    parts = (message.text or "").split(maxsplit=1)
-    if len(parts) < 2:
-        await message.answer("مثال: <code>تجهیز شمشیر آهنی</code>", parse_mode="HTML")
-        return
-    name = parts[1].strip()
-    key = ITEM_ALIASES.get(name) or ITEM_ALIASES.get(name.lower())
+    text = message.text or ""
+    for pref in ("/equip", "تجهیز", "پوشیدن"):
+        if text.startswith(pref):
+            text = text[len(pref):].strip()
+            break
+    key = _resolve_item(text)
     if not key:
-        await message.answer("❌ آیتم پیدا نشد.")
+        await message.answer("آیتم پیدا نشد. اول «موجودی» را ببین.")
         return
     try:
         result = await equipment_service.equip(message.from_user.id, key)
         stats = result.get("stats") or {}
         await message.answer(
-            "✅ تجهیز شد: <b>{}</b>\n⚔️ حمله: {} | 🛡️ دفاع: {}".format(
-                ITEMS[key]["name"], stats.get("attack", 0), stats.get("defense", 0)
-            ),
+            f"🔧 تجهیز شد: <b>{result.get('item')}</b>\n"
+            f"ATK {stats.get('attack', 0)} · DEF {stats.get('defense', 0)}",
             parse_mode="HTML",
         )
     except ValueError as e:
@@ -150,27 +221,12 @@ async def shop_inventory(message: Message):
     except Exception as e:
         await message.answer(f"❌ {e}")
         return
-    inv = data.get("inventory") or data.get("items") or []
-    equipped = data.get("equipped") or {}
-    lines = ["🎒 <b>موجودی تجهیزات</b>\n"]
-    if not inv:
-        lines.append("خالی است. از «فروشگاه» خرید کن.")
-    else:
-        for row in inv:
-            if isinstance(row, dict):
-                k = row.get("item_key") or row.get("key")
-                q = row.get("quantity", 1)
-                name = row.get("name") or ITEMS.get(k, {}).get("name", k)
-                lines.append(f"• {name} ×{q}")
-            else:
-                lines.append(f"• {row}")
-    w = equipped.get("weapon")
-    a = equipped.get("armor")
-    lines.append(
-        f"\n🔧 فعال: سلاح {ITEMS.get(w, {}).get('name', w or '—')} | "
-        f"زره {ITEMS.get(a, {}).get('name', a or '—')}"
+    inv = data.get("inventory") or []
+    await message.answer(
+        _format_inventory(data),
+        parse_mode="HTML",
+        reply_markup=inventory_keyboard(message.from_user.id, inv),
     )
-    await message.answer("\n".join(lines), parse_mode="HTML", reply_markup=shop_keyboard(message.from_user.id))
 
 
 @router.message(Command("box", "صندوق"))
@@ -179,16 +235,11 @@ async def shop_box(message: Message):
     req = str(uuid.uuid4())
     try:
         result = await equipment_service.open_box(message.from_user.id, req)
-        reward = result.get("reward") or result
-        rtype = reward.get("type")
-        if rtype == "coins":
-            await message.answer(f"🎁 صندوق باز شد! 🪙 +{reward.get('amount', 0)} سکه")
-        elif rtype == "item":
-            key = reward.get("item_key") or reward.get("key")
-            name = reward.get("name") or ITEMS.get(key, {}).get("name", key)
-            await message.answer(f"🎁 صندوق باز شد! آیتم: <b>{name}</b>", parse_mode="HTML")
-        else:
-            await message.answer(f"🎁 صندوق باز شد! {result}")
+        await message.answer(
+            _format_box_result(result),
+            parse_mode="HTML",
+            reply_markup=shop_keyboard(message.from_user.id),
+        )
     except ValueError as e:
         await message.answer(f"❌ {e}")
     except Exception as e:
@@ -198,7 +249,7 @@ async def shop_box(message: Message):
 @router.callback_query(F.data.startswith("shop:"))
 async def shop_callbacks(call: CallbackQuery):
     parts = (call.data or "").split(":")
-    # shop:{owner}:{action}
+    # shop:owner:action[:extra]
     if len(parts) < 3:
         await call.answer("دکمه نامعتبر", show_alert=True)
         return
@@ -211,41 +262,67 @@ async def shop_callbacks(call: CallbackQuery):
         await call.answer("🚫 این پنل مال تو نیست.", show_alert=True)
         return
     action = parts[2]
-    await call.answer()
+    extra = parts[3] if len(parts) > 3 else ""
+
     if not call.message:
+        await call.answer()
         return
-    if action == "list":
-        await call.message.answer(_format_catalog(), parse_mode="HTML")
-    elif action == "inv":
-        call.message.from_user = call.from_user  # type: ignore
-        # reuse inventory display
-        try:
+
+    try:
+        if action == "home":
+            await call.answer()
+            await call.message.answer(
+                "🛒 فروشگاه",
+                reply_markup=catalog_keyboard(call.from_user.id),
+            )
+        elif action == "list":
+            await call.answer()
+            await call.message.answer(
+                _format_catalog(),
+                parse_mode="HTML",
+                reply_markup=catalog_keyboard(call.from_user.id),
+            )
+        elif action == "inv":
+            await call.answer()
             data = await equipment_service.dashboard(call.from_user.id)
-            inv = data.get("inventory") or data.get("items") or []
-            lines = ["🎒 موجودی تو:"]
-            if not inv:
-                lines.append("خالی است.")
-            else:
-                for row in inv:
-                    if isinstance(row, dict):
-                        k = row.get("item_key") or row.get("key")
-                        q = row.get("quantity", 1)
-                        lines.append(f"• {ITEMS.get(k, {}).get('name', k)} ×{q}")
-            await call.message.answer("\n".join(lines), reply_markup=shop_keyboard(call.from_user.id))
-        except Exception as e:
-            await call.message.answer(str(e))
-    elif action == "box":
-        req = str(uuid.uuid4())
+            await call.message.answer(
+                _format_inventory(data),
+                parse_mode="HTML",
+                reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
+            )
+        elif action == "buy" and extra:
+            await call.answer("خرید…")
+            result = await equipment_service.buy(call.from_user.id, extra, 1)
+            data = await equipment_service.dashboard(call.from_user.id)
+            await call.message.answer(
+                f"✅ {result.get('item')} خریده شد (−{result.get('cost')}🪙)\nموجودی: {result.get('coins')}",
+                reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
+            )
+        elif action == "eq" and extra:
+            await call.answer("تجهیز…")
+            result = await equipment_service.equip(call.from_user.id, extra)
+            stats = result.get("stats") or {}
+            data = await equipment_service.dashboard(call.from_user.id)
+            await call.message.answer(
+                f"🔧 <b>{result.get('item')}</b> فعال شد\nATK {stats.get('attack', 0)} · DEF {stats.get('defense', 0)}",
+                parse_mode="HTML",
+                reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
+            )
+        elif action == "box":
+            await call.answer("صندوق…")
+            result = await equipment_service.open_box(call.from_user.id, str(uuid.uuid4()))
+            await call.message.answer(
+                _format_box_result(result),
+                parse_mode="HTML",
+                reply_markup=shop_keyboard(call.from_user.id),
+            )
+        else:
+            await call.answer("اقدام نامعتبر", show_alert=True)
+    except ValueError as e:
+        await call.answer(str(e)[:180], show_alert=True)
+    except Exception as e:
+        await call.answer("خطا", show_alert=True)
         try:
-            result = await equipment_service.open_box(call.from_user.id, req)
-            if result.get("type") == "coins" or result.get("reward_type") == "coins":
-                amt = result.get("amount") or result.get("reward_amount")
-                await call.message.answer(f"🎁 +{amt} سکه از صندوق!")
-            else:
-                key = result.get("item_key") or result.get("reward_key")
-                name = ITEMS.get(key, {}).get("name", key)
-                await call.message.answer(f"🎁 آیتم: {name}")
-        except ValueError as e:
-            await call.message.answer(str(e))
-        except Exception as e:
-            await call.message.answer(str(e))
+            await call.message.answer(f"❌ {e}")
+        except Exception:
+            pass

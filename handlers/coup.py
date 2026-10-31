@@ -79,6 +79,13 @@ def claim_keyboard(room_id: int, claim: dict):
             buttons.append([InlineKeyboardButton(text=f'🛡️ مسدودسازی با {ROLE_FA[role]}', callback_data=f'coup:block:{room_id}:{role}')])
     return InlineKeyboardMarkup(inline_keyboard=buttons) if buttons else None
 
+def lobby_keyboard(room_id: int):
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🃏 پیوستن', callback_data=f'coup:lobby:join:{room_id}')],
+        [InlineKeyboardButton(text='▶️ شروع', callback_data=f'coup:lobby:start:{room_id}'),
+         InlineKeyboardButton(text='📊 وضعیت', callback_data=f'coup:lobby:status:{room_id}')],
+    ])
+
 def action_keyboard(room_id: int, target_ids: list[tuple[str, str]] | None = None):
     rows = [
         [InlineKeyboardButton(text='🪙 درآمد +۱', callback_data=f'coup:act:{room_id}:income'), InlineKeyboardButton(text='💰 کمک خارجی +۲', callback_data=f'coup:act:{room_id}:foreign_aid')],
@@ -99,7 +106,7 @@ async def coup_create(message: Message):
         await message.answer('این دستور را داخل گروه بازی اجرا کن.'); return
     try:
         rid = await service.create_room(message.chat.id, message.from_user.id, await display_name(message))
-        await message.answer(f'🃏 اتاق کودتا #{rid} ساخته شد!\nبرای پیوستن: /coup_join\nبرای شروع (حداقل ۲ نفر): /coup_start')
+        await message.answer(f'🃏 اتاق کودتا #{rid} ساخته شد!\nبا دکمه‌ها بپیوند یا شروع کن.', reply_markup=lobby_keyboard(rid))
     except ValueError as exc: await message.answer(str(exc))
 
 @router.message(Command('coup_join', 'کودتا_جوین'))
@@ -351,8 +358,78 @@ async def coup_menu(message: Message):
     targets = [(str(p['telegram_id']), p['display_name']) for p in players if str(p['telegram_id']) != str(message.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
     await message.answer('🃏 منوی تعاملی کودتا — اقدام فقط در نوبت خودت پذیرفته می‌شود.', reply_markup=action_keyboard(room['id'], targets))
 
+
+@router.callback_query(F.data.startswith('coup:lobby:'))
+async def coup_lobby_buttons(call: CallbackQuery):
+    parts = (call.data or '').split(':')
+    if len(parts) < 4:
+        await call.answer('نامعتبر', show_alert=True)
+        return
+    action, room_id_s = parts[2], parts[3]
+    try:
+        room_id = int(room_id_s)
+    except ValueError:
+        await call.answer('نامعتبر', show_alert=True)
+        return
+    if action == 'join':
+        try:
+            await upsert_user(call.from_user.id, call.from_user.username, call.from_user.full_name or str(call.from_user.id))
+            count = await service.join_room(room_id, call.from_user.id, call.from_user.full_name or str(call.from_user.id))
+            await call.answer('پیوستی!')
+            if call.message:
+                await call.message.answer(
+                    f'✅ {call.from_user.full_name} پیوست. تعداد: {count}',
+                    reply_markup=lobby_keyboard(room_id),
+                )
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        except Exception as e:
+            await call.answer(str(e)[:180], show_alert=True)
+    elif action == 'start':
+        try:
+            chat_id, state = await service.start_room(room_id, call.from_user.id)
+            rows = await service.players(room_id)
+            failures = []
+            for p in rows:
+                pdata = state['players'].get(str(p['telegram_id']), {})
+                try:
+                    await call.bot.send_message(
+                        p['telegram_id'],
+                        '🃏 بازی کودتا شروع شد!\nکارت‌های مخفی تو: '
+                        + '، '.join(ROLE_FA[c] for c in pdata.get('cards', []))
+                        + '\nدکمه‌های بازی را در گروه بزن یا /coup_menu',
+                    )
+                except Exception:
+                    failures.append(p['telegram_id'])
+            if failures:
+                await call.answer('برخی نقش نگرفتند؛ /start خصوصی لازم است', show_alert=True)
+            else:
+                await call.answer('شروع شد!')
+            if call.message:
+                cur = current_player(state)
+                await call.message.answer(
+                    '🃏 بازی شروع شد! با دکمه‌های شیشه‌ای بازی کن.',
+                    reply_markup=action_keyboard(room_id),
+                )
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        except Exception as e:
+            await call.answer(str(e)[:180], show_alert=True)
+    elif action == 'status':
+        room = await service.room(room_id)
+        await call.answer()
+        if call.message:
+            st = room.get('status') if room else '?'
+            await call.message.answer(
+                f'🃏 اتاق کودتا {room_id} — وضعیت: {st}',
+                reply_markup=lobby_keyboard(room_id),
+            )
+
+
 @router.callback_query(F.data.startswith('coup:'))
 async def coup_buttons(call: CallbackQuery):
+    if (call.data or '').startswith('coup:lobby:'):
+        return
     if not call.message or call.message.chat.type == 'private':
         await call.answer('این دکمه را در گروه بازی استفاده کن.', show_alert=True); return
     parts = call.data.split(':')

@@ -13,7 +13,13 @@ async def name_of(message: Message) -> str:
     return (message.from_user.full_name or str(message.from_user.id))[:80]
 
 def room_keyboard(room_id: int):
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='🎭 پیوستن به بازی', callback_data=f'ma:join:{room_id}')]])
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text='🎭 پیوستن به بازی', callback_data=f'ma:join:{room_id}')],
+        [InlineKeyboardButton(text='▶️ شروع بازی', callback_data=f'ma:start:{room_id}'),
+         InlineKeyboardButton(text='📊 وضعیت', callback_data=f'ma:status:{room_id}')],
+        [InlineKeyboardButton(text='📜 قوانین', callback_data=f'ma:rules:{room_id}'),
+         InlineKeyboardButton(text='❌ لغو', callback_data=f'ma:cancel:{room_id}')],
+    ])
 
 def target_keyboard(room_id: int, targets, prefix: str):
     rows=[]
@@ -146,6 +152,89 @@ async def join_callback(call: CallbackQuery):
         except Exception: pass
         if call.message: await call.message.reply(f'✅ {user.full_name} ثبت‌نام شد. تعداد: {count}')
     except ValueError as e: await call.answer(str(e),show_alert=True)
+
+
+@router.callback_query(F.data.startswith('ma:start:'))
+async def start_callback(call: CallbackQuery):
+    room_id = int(call.data.split(':')[2])
+    try:
+        assigned, chat_id = await service.start_room(room_id, call.from_user.id)
+        failures = []
+        for tg_id, role in assigned:
+            try:
+                await call.bot.send_message(
+                    tg_id,
+                    f'🎭 بازی شروع شد! نقش مخفی تو: {service.ROLE_NAMES[role]}\n'
+                    f'برای اقدام شبانه از «مافیا شب» یا دکمه‌ها استفاده کن. نقش را در گروه فاش نکن.',
+                )
+            except Exception:
+                failures.append(tg_id)
+        if failures:
+            await service.cancel_room(room_id, call.from_user.id, is_admin=True)
+            await call.answer('ارسال نقش ناموفق؛ اتاق لغو شد', show_alert=True)
+            if call.message:
+                await call.message.answer(
+                    '⚠️ نقش خصوصی به همه نرسید. همه باید اول در خصوصی ربات «شروع» بزنند.'
+                )
+            return
+        await call.answer('شروع شد!')
+        if call.message:
+            await call.message.answer(
+                '☀️ روز معارفه شروع شد؛ ۳۰ ثانیه فرصت گفت‌وگو. سپس شب معارفه خودکار آغاز می‌شود.'
+            )
+            await arm_timer(call.bot, room_id, chat_id, 'intro_day')
+    except ValueError as e:
+        await call.answer(str(e)[:180], show_alert=True)
+    except Exception as e:
+        await call.answer(str(e)[:180], show_alert=True)
+
+
+@router.callback_query(F.data.startswith('ma:status:'))
+async def status_callback(call: CallbackQuery):
+    room_id = int(call.data.split(':')[2])
+    room = await service.get_room(room_id)
+    if not room:
+        await call.answer('اتاق پیدا نشد', show_alert=True)
+        return
+    players = await service.room_players(room_id)
+    labels = {
+        'lobby': 'ثبت‌نام', 'intro_day': 'روز معارفه', 'intro_night': 'شب معارفه',
+        'night': 'شب', 'day': 'روز', 'handshake': 'دست‌دادن', 'finished': 'پایان',
+    }
+    lines = [
+        f'🎭 اتاق #{room_id} — {labels.get(room["status"], room["status"])}',
+        f'بازیکنان: {len(players)}',
+    ]
+    lines += [f'{"🟢" if p["alive"] else "⚫"} {p["display_name"]}' for p in players]
+    await call.answer()
+    if call.message:
+        await call.message.answer('\n'.join(lines), reply_markup=room_keyboard(room_id))
+
+
+@router.callback_query(F.data.startswith('ma:rules:'))
+async def rules_callback(call: CallbackQuery):
+    await call.answer()
+    if call.message:
+        await call.message.answer(
+            '📜 قوانین مافیا\n'
+            '• نقش‌ها: مافیا، پزشک، کارآگاه، شهروند\n'
+            '• شب: اقدام نقش‌دارها · روز: بحث و رأی\n'
+            '• قبل از شروع همه باید در خصوصی ربات «شروع» زده باشند\n'
+            '• نقش مخفی را در گروه فاش نکن'
+        )
+
+
+@router.callback_query(F.data.startswith('ma:cancel:'))
+async def cancel_callback(call: CallbackQuery):
+    room_id = int(call.data.split(':')[2])
+    try:
+        await service.cancel_room(room_id, call.from_user.id)
+        await call.answer('لغو شد')
+        if call.message:
+            await call.message.answer(f'❌ اتاق {room_id} لغو شد.')
+    except ValueError as e:
+        await call.answer(str(e)[:180], show_alert=True)
+
 
 @router.message(Command('mafia_join', 'مافیا_جوین'))
 @router.message(F.text.in_({'مافیا جوین', 'جوین مافیا', 'پیوستن مافیا'}))

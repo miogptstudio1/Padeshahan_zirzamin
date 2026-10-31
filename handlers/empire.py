@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from games.empire import service
 from games.events import service as event_service
 from games.empire.engine import ASSETS, CITIES, MAX_ASSET_LEVEL, MAX_DEFENSE_LEVEL, hourly_income, SOLDIER_RECRUIT_COST, MAX_SOLDIERS, army_power_bonus
@@ -14,10 +14,20 @@ CITY_ALIASES.update({'بازار': 'market', 'بازار مرکزی': 'market', 
 def empire_keyboard(owner_id: int):
     uid = int(owner_id)
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='🎁 پاداش روزانه', callback_data=f'empire:{uid}:daily'), InlineKeyboardButton(text='🧰 کار روزانه', callback_data=f'empire:{uid}:work')],
-        [InlineKeyboardButton(text='🏭 دارایی‌های من', callback_data=f'empire:{uid}:assets'), InlineKeyboardButton(text='🏆 رتبه‌بندی', callback_data=f'empire:{uid}:top')],
-        [InlineKeyboardButton(text='🗺️ نقشهٔ قلمروها', callback_data=f'empire:{uid}:cities'), InlineKeyboardButton(text='👑 قلمروهای من', callback_data=f'empire:{uid}:mycities')],
-        [InlineKeyboardButton(text='🛒 فروشگاه', callback_data=f'empire:{uid}:shop')],
+        [InlineKeyboardButton(text='🎁 پاداش', callback_data=f'empire:{uid}:daily'),
+         InlineKeyboardButton(text='🧰 کار', callback_data=f'empire:{uid}:work')],
+        [InlineKeyboardButton(text='🏭 دارایی', callback_data=f'empire:{uid}:assets'),
+         InlineKeyboardButton(text='💵 جمع درآمد', callback_data=f'empire:{uid}:collectmenu')],
+        [InlineKeyboardButton(text='🏗️ خرید کارگاه', callback_data=f'empire:{uid}:buy:workshop'),
+         InlineKeyboardButton(text='🏗️ باشگاه', callback_data=f'empire:{uid}:buy:club')],
+        [InlineKeyboardButton(text='🏗️ کارخانه', callback_data=f'empire:{uid}:buy:factory'),
+         InlineKeyboardButton(text='⚔️ ارتش', callback_data=f'empire:{uid}:army')],
+        [InlineKeyboardButton(text='🪖 +5 سرباز', callback_data=f'empire:{uid}:recruit5'),
+         InlineKeyboardButton(text='🗺️ قلمروها', callback_data=f'empire:{uid}:cities')],
+        [InlineKeyboardButton(text='👑 قلمروهای من', callback_data=f'empire:{uid}:mycities'),
+         InlineKeyboardButton(text='🏆 رتبه', callback_data=f'empire:{uid}:top')],
+        [InlineKeyboardButton(text='🛒 فروشگاه', callback_data=f'empire:{uid}:shop'),
+         InlineKeyboardButton(text='🕶️ خلاف', callback_data=f'empire:{uid}:crime')],
     ])
 
 
@@ -261,11 +271,10 @@ async def empire_disband(message: Message):
 
 
 @router.callback_query(lambda call: call.data and call.data.startswith('empire:'))
-async def empire_menu_buttons(call):
+async def empire_menu_buttons(call: CallbackQuery):
     parts = (call.data or '').split(':')
-    # empire:{owner}:{action}  (legacy empire:action also accepted for owner=clicker only via reject)
     if len(parts) == 2:
-        await call.answer('این دکمه قدیمی است؛ دوباره /empire بزن.', show_alert=True)
+        await call.answer('این دکمه قدیمی است؛ دوباره امپراتوری بزن.', show_alert=True)
         return
     if len(parts) < 3:
         await call.answer('دکمه نامعتبر', show_alert=True)
@@ -279,46 +288,115 @@ async def empire_menu_buttons(call):
         await call.answer('🚫 این پنل مال تو نیست.', show_alert=True)
         return
     action = parts[2]
+    extra = parts[3] if len(parts) > 3 else ''
     await call.answer()
     if not call.message:
         return
-    if action == 'shop':
-        await call.message.answer('🛒 برای فروشگاه بنویس: فروشگاه یا /shop')
-        return
-    if action == 'daily':
-        try:
-            reward, balance = await service.claim_daily(call.from_user.id)
-            await call.message.answer(f'🎁 +{reward} سکه. موجودی: {balance}')
-        except ValueError as exc:
-            await call.message.answer(str(exc))
-    elif action == 'work':
-        try:
-            reward, balance = await service.work(call.from_user.id)
-            await call.message.answer(f'🧰 +{reward} سکه. موجودی: {balance}')
-        except ValueError as exc:
-            await call.message.answer(str(exc))
-    elif action == 'assets':
-        rows = await service.assets_for(call.from_user.id)
-        lines = ['🏭 دارایی‌های تو:'] if rows else ['هنوز دارایی‌ای نداری. /empire_buy workshop']
-        for row in rows:
-            lines.append(f"• {ASSETS[row['asset_key']]['name']} سطح {row['level']} — {hourly_income(row['asset_key'], int(row['level']))} سکه/ساعت")
-        await call.message.answer('\n'.join(lines))
-    elif action == 'top':
-        rows = await service.leaderboard(10)
-        lines = ['🏆 رتبه‌بندی ثروت'] + [f"{i}. {r['display_name'] or r['telegram_id']} — {r['coins']} سکه" for i, r in enumerate(rows, 1)]
-        await call.message.answer('\n'.join(lines))
-    elif action == 'cities':
-        rows = await service.cities_list()
-        lines = ['🗺️ قلمروها:']
-        for row in rows:
-            lines.append(f"• {row['name']} [{row['city_key']}] — {row['price']} سکه، مالیات {row['tax_income']}؛ مالک: {row['owner_name'] or 'آزاد'}")
-        await call.message.answer('\n'.join(lines))
-    elif action == 'mycities':
-        rows = await service.my_cities(call.from_user.id)
-        lines = ['👑 قلمروهای تو:']
-        for row in rows:
-            lines.append(f"• {row['name']} — مالیات {row['tax_income']}، دفاع {row['defense_level']}/{MAX_DEFENSE_LEVEL}")
-        await call.message.answer('\n'.join(lines) if rows else 'هنوز قلمرویی نداری.')
+    uid = call.from_user.id
+    kb = empire_keyboard(uid)
+    try:
+        if action == 'shop':
+            from handlers.shop import catalog_keyboard, _format_catalog
+            await call.message.answer(_format_catalog(), parse_mode='HTML', reply_markup=catalog_keyboard(uid))
+        elif action == 'crime':
+            await call.message.answer(
+                '🕶️ خلاف: حمله · جیب‌بری · باج · قاچاق · پناهگاه',
+                reply_markup=kb,
+            )
+        elif action == 'daily':
+            reward, balance = await service.claim_daily(uid)
+            try:
+                await event_service.add_score(uid, 10, 'economy')
+            except Exception:
+                pass
+            await call.message.answer(f'🎁 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
+        elif action == 'work':
+            reward, balance = await service.work(uid)
+            try:
+                await event_service.add_score(uid, 5, 'economy')
+            except Exception:
+                pass
+            await call.message.answer(f'🧰 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
+        elif action == 'assets':
+            rows = await service.assets_for(uid)
+            lines = ['🏭 دارایی‌های تو:'] if rows else ['هنوز دارایی نداری. از دکمه‌های خرید استفاده کن.']
+            for row in rows:
+                lines.append(f"• {ASSETS[row['asset_key']]['name']} سطح {row['level']} — {hourly_income(row['asset_key'], int(row['level']))} سکه/ساعت")
+            await call.message.answer('\n'.join(lines), reply_markup=kb)
+        elif action == 'collectmenu':
+            rows = [
+                [InlineKeyboardButton(text='💵 کارگاه', callback_data=f'empire:{uid}:collect:workshop'),
+                 InlineKeyboardButton(text='💵 باشگاه', callback_data=f'empire:{uid}:collect:club')],
+                [InlineKeyboardButton(text='💵 کارخانه', callback_data=f'empire:{uid}:collect:factory')],
+                [InlineKeyboardButton(text='◀️ بازگشت', callback_data=f'empire:{uid}:assets')],
+            ]
+            await call.message.answer('کدام درآمد را جمع کنیم؟', reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+        elif action == 'collect' and extra in ASSETS:
+            name, amount, balance = await service.collect_income(uid, extra)
+            await call.message.answer(f'💵 {name}: +{amount}\n💰 {balance}', reply_markup=kb)
+        elif action == 'buy' and extra in ASSETS:
+            name, level, cost, balance = await service.buy_or_upgrade(uid, extra)
+            await call.message.answer(
+                f'🏗️ {name} سطح {level}\nهزینه {cost} · موجودی {balance}',
+                reply_markup=kb,
+            )
+        elif action == 'army':
+            army = await service.army_for(uid)
+            sol = int(army.get('soldiers') or 0)
+            await call.message.answer(
+                f'⚔️ ارتش: {sol} سرباز\nقدرت: +{army_power_bonus(sol)}\nهزینه هر سرباز: {SOLDIER_RECRUIT_COST}',
+                reply_markup=kb,
+            )
+        elif action == 'recruit5':
+            total, cost, balance = await service.recruit_soldiers(uid, 5)
+            await call.message.answer(f'🪖 سربازان: {total} (−{cost}) · 💰 {balance}', reply_markup=kb)
+        elif action == 'top':
+            rows = await service.leaderboard(10)
+            lines = ['🏆 رتبه‌بندی ثروت'] + [f"{i}. {r['display_name'] or r['telegram_id']} — {r['coins']} سکه" for i, r in enumerate(rows, 1)]
+            await call.message.answer('\n'.join(lines), reply_markup=kb)
+        elif action == 'cities':
+            rows = await service.cities_list()
+            lines = ['🗺️ قلمروها:']
+            city_btns = []
+            for row in rows:
+                lines.append(f"• {row['name']} [{row['city_key']}] — {row['price']}🪙 · مالک: {row['owner_name'] or 'آزاد'}")
+                if row['owner_id'] is None:
+                    city_btns.append([InlineKeyboardButton(
+                        text=f"🛒 خرید {row['name']}",
+                        callback_data=f"empire:{uid}:citybuy:{row['city_key']}",
+                    )])
+            city_btns.append([InlineKeyboardButton(text='◀️ منو', callback_data=f'empire:{uid}:assets')])
+            await call.message.answer('\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=city_btns) if city_btns else kb)
+        elif action == 'citybuy' and extra:
+            name, cost, balance = await service.city_buy(uid, extra)
+            await call.message.answer(f'✅ {name} خریداری شد (−{cost}) · 💰 {balance}', reply_markup=kb)
+        elif action == 'mycities':
+            rows = await service.my_cities(uid)
+            if not rows:
+                await call.message.answer('هنوز قلمرویی نداری.', reply_markup=kb)
+                return
+            lines = ['👑 قلمروهای تو:']
+            btns = []
+            for row in rows:
+                lines.append(f"• {row['name']} — مالیات {row['tax_income']}، دفاع {row['defense_level']}/{MAX_DEFENSE_LEVEL}")
+                btns.append([
+                    InlineKeyboardButton(text=f"💵 مالیات {row['name'][:12]}", callback_data=f"empire:{uid}:tax:{row['city_key']}"),
+                    InlineKeyboardButton(text=f"🛡️ دفاع", callback_data=f"empire:{uid}:defend:{row['city_key']}"),
+                ])
+            btns.append([InlineKeyboardButton(text='◀️ منو', callback_data=f'empire:{uid}:army')])
+            await call.message.answer('\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+        elif action == 'tax' and extra:
+            name, amount, balance = await service.collect_tax(uid, extra)
+            await call.message.answer(f'💵 مالیات {name}: +{amount} · 💰 {balance}', reply_markup=kb)
+        elif action == 'defend' and extra:
+            name, level, cost, balance = await service.upgrade_city_defense(uid, extra)
+            await call.message.answer(f'🛡️ دفاع {name} → سطح {level} (−{cost}) · 💰 {balance}', reply_markup=kb)
+        else:
+            await call.message.answer('اقدام پشتیبانی نشده.', reply_markup=kb)
+    except ValueError as exc:
+        await call.message.answer(str(exc), reply_markup=kb)
+    except Exception as exc:
+        await call.message.answer(f'خطا: {exc}', reply_markup=kb)
 
 
 @router.message(Command('empire_war'))
