@@ -47,6 +47,8 @@ async def cmd_boss_hit(message: Message):
             f"جان باس: {r['boss_hp']:,}/{r['boss_max']:,}\n"
             f"مجموع آسیب تو: {r['my_damage']:,}"
         )
+        if r.get("player_hp"):
+            msg += f"\n❤️ جانت پر شد: {r['player_hp']['hp']}/{r['player_hp']['max_hp']}"
         if r["defeated"]:
             msg += "\n\nباس افتاد. جوایز برای نفرات برتر واریز شد."
         await message.answer(msg, reply_markup=boss_kb(message.from_user.id))
@@ -74,6 +76,8 @@ async def boss_cb(call):
             r = await boss_service.attack_boss(owner)
             await call.answer(f"−{r['damage']}")
             msg = f"ضربه {r['damage']:,} · جان باس {r['boss_hp']:,}/{r['boss_max']:,}"
+            if r.get("player_hp"):
+                msg += f"\n❤️ جانت پر شد: {r['player_hp']['hp']}/{r['player_hp']['max_hp']}"
             if r["defeated"]:
                 msg += "\nباس شکست."
             await call.message.answer(msg, reply_markup=boss_kb(owner))

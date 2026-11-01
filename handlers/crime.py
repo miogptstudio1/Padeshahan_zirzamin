@@ -162,7 +162,7 @@ async def cmd_heal(message: Message):
     try:
         r = await crime_service.heal_self(message.from_user.id)
         await message.answer(
-            f"💚 +{r['healed']} جان\n❤️ {r['hp']}/{r['max_hp']}"
+            f"💚 هیل کامل\n❤️ {r['hp']}/{r['max_hp']} (+{r['healed']})"
         )
     except ValueError as e:
         await message.answer(f"❌ {e}")
