@@ -19,6 +19,17 @@ STARTER_COINS = 50
 STARTER_SOLDIERS = 3
 
 
+def _hp_int(value, default: int = 100) -> int:
+    """۰ معتبر است؛ از or استفاده نکن چون 0 را به default تبدیل می‌کند."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+
 async def ensure_hideout(user_id: int) -> dict[str, Any]:
     user_id = int(user_id)
     async with db().acquire() as conn:
@@ -40,7 +51,7 @@ async def ensure_hideout(user_id: int) -> dict[str, Any]:
                 STARTER_SOLDIERS,
             )
         row = await conn.fetchrow("SELECT * FROM player_hideouts WHERE telegram_id=$1", user_id)
-    return dict(row) if row else {"telegram_id": user_id, "name": "پناهگاه کوچک", "level": 1, "defense": 5}
+    return dict(row) if row else {"telegram_id": user_id, "name": "پناهگاه کوچک", "level": 1, "defense": 5, "hp": 100, "max_hp": 100}
 
 
 async def grant_starter_pack(user_id: int) -> None:
@@ -137,13 +148,15 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
             if def_user["is_banned"]:
                 raise ValueError("هدف مسدود است.")
 
-    # چک جان
+    # چک جان (۰ معتبر است)
+    await ensure_hideout(attacker_id)
+    await ensure_hideout(defender_id)
     async with db().acquire() as conn:
         ahp = await conn.fetchval("SELECT hp FROM player_hideouts WHERE telegram_id=$1", attacker_id)
         dhp = await conn.fetchval("SELECT hp FROM player_hideouts WHERE telegram_id=$1", defender_id)
-    if ahp is not None and int(ahp) <= 0:
+    if _hp_int(ahp) <= 0:
         raise ValueError("جان تو تمام شده؛ اول «هیل» بزن.")
-    if dhp is not None and int(dhp) <= 0:
+    if _hp_int(dhp) <= 0:
         raise ValueError("هدف بی‌هوش است؛ فعلاً قابل حمله نیست.")
 
     atk_pow = await _power(attacker_id)
@@ -199,7 +212,7 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
                     defender_id,
                 )
                 if drow:
-                    cur_hp = int(drow["hp"] or 100)
+                    cur_hp = _hp_int(drow["hp"])
                     def_hp_left = max(0, cur_hp - hp_damage)
                     await conn.execute(
                         "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
@@ -217,7 +230,7 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
                     await conn.execute(
                         "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
                         attacker_id,
-                        max(1, int(arow["hp"] or 100) - fee_hp),
+                        max(0, _hp_int(arow["hp"]) - fee_hp),
                     )
                 hp_damage = fee_hp
             await conn.execute(
@@ -467,8 +480,26 @@ async def hideout_status(user_id: int) -> dict[str, Any]:
     power = await _power(user_id)
     return {"hideout": h, "power": power}
 
-HEAL_COOLDOWN = 10 * 60  # 10 minutes
+HEAL_COOLDOWN = 8 * 60  # 8 minutes
 HEAL_AMOUNT = 35
+
+
+async def restore_full_hp(user_id: int) -> dict:
+    """پر کردن کامل جان (مثلاً بعد ضربه به باس)."""
+    user_id = int(user_id)
+    await ensure_hideout(user_id)
+    async with db().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT hp, max_hp FROM player_hideouts WHERE telegram_id=$1",
+            user_id,
+        )
+        max_hp = _hp_int(row["max_hp"] if row else None)
+        await conn.execute(
+            "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
+            user_id,
+            max_hp,
+        )
+    return {"hp": max_hp, "max_hp": max_hp}
 
 
 async def heal_self(user_id: int) -> dict:
@@ -481,20 +512,24 @@ async def heal_self(user_id: int) -> dict:
                 user_id,
             )
             if not row:
-                raise ValueError("پناهگاه پیدا نشد.")
+                raise ValueError("پناهگاه پیدا نشد. اول «شروع» بزن.")
             now = datetime.now(timezone.utc)
             last = row["last_heal_at"]
             if last is not None:
-                if last.tzinfo is None:
+                if getattr(last, "tzinfo", None) is None:
                     last = last.replace(tzinfo=timezone.utc)
                 elapsed = (now - last).total_seconds()
                 if elapsed < HEAL_COOLDOWN:
-                    raise ValueError(f"هیل هنوز آماده نیست؛ {max(1, int(HEAL_COOLDOWN-elapsed)//60)} دقیقه صبر کن.")
-            hp = int(row["hp"] or 100)
-            max_hp = int(row["max_hp"] or 100)
+                    remain = max(1, int((HEAL_COOLDOWN - elapsed) // 60) + (1 if (HEAL_COOLDOWN - elapsed) % 60 else 0))
+                    raise ValueError(f"هیل آماده نیست؛ حدود {remain} دقیقه صبر کن.")
+            hp = _hp_int(row["hp"])
+            max_hp = _hp_int(row["max_hp"])
+            if max_hp < 1:
+                max_hp = 100
             if hp >= max_hp:
-                raise ValueError("جان تو کامل است.")
-            new_hp = min(max_hp, hp + HEAL_AMOUNT)
+                raise ValueError("جانت پر است.")
+            # پر کردن کامل با هیل
+            new_hp = max_hp
             await conn.execute(
                 "UPDATE player_hideouts SET hp=$2, last_heal_at=NOW() WHERE telegram_id=$1",
                 user_id,
@@ -506,8 +541,8 @@ async def heal_self(user_id: int) -> dict:
 async def hp_status(user_id: int) -> dict:
     h = await ensure_hideout(user_id)
     return {
-        "hp": int(h.get("hp") or 100),
-        "max_hp": int(h.get("max_hp") or 100),
+        "hp": _hp_int(h.get("hp")),
+        "max_hp": _hp_int(h.get("max_hp")),
         "name": h.get("name"),
         "level": h.get("level"),
         "defense": h.get("defense"),
