@@ -78,7 +78,22 @@ def lose_influence(state: dict, pid: int | str, card_index: int) -> str:
 
 
 def _next_turn(state: dict):
-    state["turn_index"] = (state["turn_index"] + 1) % len(state["turn_order"])
+    """Advance to the next living player so eliminated seats are skipped cleanly."""
+    order = state.get("turn_order") or []
+    n = len(order)
+    if n == 0:
+        _finish_if_needed(state)
+        return
+    start = int(state.get("turn_index") or 0) % n
+    for offset in range(1, n + 1):
+        idx = (start + offset) % n
+        pid = order[idx]
+        pl = state["players"].get(pid) or {}
+        if pl.get("alive"):
+            state["turn_index"] = idx
+            break
+    else:
+        state["turn_index"] = start
     _finish_if_needed(state)
 
 
