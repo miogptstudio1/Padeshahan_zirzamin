@@ -6,6 +6,7 @@ from typing import Any
 
 from core.database import db
 from games.empire import army_advanced
+from games.empire import crime as crime_service
 from games.events import service as event_service
 from games.daily import service as daily_service
 from games.reputation import service as rep_service
@@ -152,6 +153,12 @@ async def attack_boss(user_id: int) -> dict[str, Any]:
         await rep_service.add(user_id, 1)
     except Exception:
         pass
+    # بعد از ضربه به باس، جان بازیکن پر می‌شود
+    player_hp = None
+    try:
+        player_hp = await crime_service.restore_full_hp(user_id)
+    except Exception:
+        player_hp = None
     return {
         "damage": atk,
         "boss_hp": new_hp,
@@ -161,4 +168,5 @@ async def attack_boss(user_id: int) -> dict[str, Any]:
         "rewards": rewards,
         "my_damage": int(my["damage"]) if my else atk,
         "my_hits": int(my["hits"]) if my else 1,
+        "player_hp": player_hp,
     }
