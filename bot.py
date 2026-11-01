@@ -12,6 +12,11 @@ from handlers.shop import router as shop_router
 from handlers.events import router as events_router
 from handlers.family import router as family_router
 from handlers.crime import router as crime_router
+from handlers.army import router as army_router
+from handlers.market import router as market_router
+from handlers.spy import router as spy_router
+from handlers.boss import router as boss_router
+from handlers.daily import router as daily_router
 from games.empire import service as empire_service
 from games.empire.engine import war_result_message
 from membership import RequiredMembershipMiddleware
@@ -54,6 +59,11 @@ async def main():
  dp.include_router(events_router)
  dp.include_router(family_router)
  dp.include_router(crime_router)
+ dp.include_router(army_router)
+ dp.include_router(market_router)
+ dp.include_router(spy_router)
+ dp.include_router(boss_router)
+ dp.include_router(daily_router)
  dp.include_router(callbacks_router)
  dp.include_router(mafia_router)
  dp.include_router(coup_router)
