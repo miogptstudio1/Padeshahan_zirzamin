@@ -37,10 +37,9 @@ def empire_keyboard(owner_id: int):
 @router.message(F.text.in_({'امپراتوری', 'امپراطوری', 'empire'}))
 async def empire_menu(message: Message):
     await message.answer(
-        'امپراتوری
-'
-        'از دکمه‌ها استفاده کن یا بنویس: پاداش، کار، ارتش، قلمروها، ارتش پیشرفته',
-        reply_markup=empire_keyboard(message.from_user.id))
+        'امپراتوری\nاز دکمه‌ها استفاده کن یا بنویس: پاداش، کار، ارتش، قلمروها، ارتش پیشرفته',
+        reply_markup=empire_keyboard(message.from_user.id),
+    )
 
 
 @router.message(Command('empire_daily', 'پاداش'))
