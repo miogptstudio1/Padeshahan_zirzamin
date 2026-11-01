@@ -42,6 +42,7 @@ async def cmd_attack(message: Message):
                 f"💥 حمله موفق به <b>{r['defender_name']}</b>!\n"
                 f"⚔️ قدرت تو {r['attacker_power']} vs {r['defender_power']}\n"
                 f"🪙 غنیمت: +{r['stolen']:,}\n"
+                f"❤️ آسیب: −{r.get('hp_damage', 0)} (جان هدف: {r.get('defender_hp', '?')})\n"
                 f"موجودی: {r['balance']:,}",
                 parse_mode="HTML",
             )
@@ -130,8 +131,9 @@ async def cmd_hideout(message: Message):
             f"🏚️ <b>{h.get('name', 'پناهگاه')}</b>\n"
             f"⭐ سطح: {h.get('level', 1)}\n"
             f"🛡️ دفاع: {h.get('defense', 0)}\n"
+            f"❤️ جان: {h.get('hp', 100)}/{h.get('max_hp', 100)}\n"
             f"⚔️ قدرت کل تو: <b>{st['power']}</b>\n\n"
-            f"ارتقا: <code>ارتقا پناهگاه</code>",
+            f"هیل: <code>هیل</code> · ارتقا: <code>ارتقا پناهگاه</code>",
             parse_mode="HTML",
         )
     except ValueError as e:
@@ -152,6 +154,34 @@ async def cmd_upgrade_hideout(message: Message):
         await message.answer(f"❌ {e}")
 
 
+
+
+@router.message(Command("heal", "هیل", "درمان"))
+@router.message(F.text.in_({"هیل", "درمان", "heal", "شفا"}))
+async def cmd_heal(message: Message):
+    try:
+        r = await crime_service.heal_self(message.from_user.id)
+        await message.answer(
+            f"💚 +{r['healed']} جان\n❤️ {r['hp']}/{r['max_hp']}"
+        )
+    except ValueError as e:
+        await message.answer(f"❌ {e}")
+
+
+@router.message(Command("hp", "جان"))
+@router.message(F.text.in_({"جان", "خون", "hp"}))
+async def cmd_hp(message: Message):
+    try:
+        r = await crime_service.hp_status(message.from_user.id)
+        await message.answer(
+            f"❤️ جان: <b>{r['hp']}/{r['max_hp']}</b>\n"
+            f"⚔️ قدرت: {r['power']}\n"
+            f"برای بازیابی: <code>هیل</code>",
+            parse_mode="HTML",
+        )
+    except ValueError as e:
+        await message.answer(f"❌ {e}")
+
 @router.message(Command("crime", "خلاف", "جرم"))
 @router.message(F.text.in_({"خلاف", "جرم", "کارهای خلاف", "crime"}))
 async def cmd_crime_help(message: Message):
@@ -161,7 +191,7 @@ async def cmd_crime_help(message: Message):
         "🧤 <code>جیب‌بری</code> — دزدی سبک\n"
         "💰 <code>باج</code> — باج‌گیری (قدرت بالاتر لازم)\n"
         "🕶️ <code>قاچاق</code> — محموله پرریسک\n"
-        "🏚️ <code>پناهگاه</code> · <code>ارتقا پناهگاه</code>\n\n"
+        "🏚️ <code>پناهگاه</code> · <code>ارتقا پناهگاه</code>\n❤️ <code>جان</code> · <code>هیل</code>\n\n"
         "هر بازیکن از اول یک <b>پناهگاه کوچک</b> داره.",
         parse_mode="HTML",
     )

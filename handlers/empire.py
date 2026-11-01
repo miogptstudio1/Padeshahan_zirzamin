@@ -3,12 +3,14 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from games.empire import service
 from games.events import service as event_service
+from games.daily import service as daily_service
 from games.empire.engine import ASSETS, CITIES, MAX_ASSET_LEVEL, MAX_DEFENSE_LEVEL, hourly_income, SOLDIER_RECRUIT_COST, MAX_SOLDIERS, army_power_bonus
 
 router = Router()
 ALIASES = {'کارگاه': 'workshop', 'باشگاه': 'club', 'کارخانه': 'factory', 'workshop': 'workshop', 'club': 'club', 'factory': 'factory'}
 CITY_ALIASES = {key: key for key in CITIES}
-CITY_ALIASES.update({'بازار': 'market', 'بازار مرکزی': 'market', 'بندر': 'port', 'بندر قدیمی': 'port', 'ارگ': 'citadel', 'ارگ سلطنتی': 'citadel', 'صنعتی': 'industrial', 'منطقه صنعتی': 'industrial', 'پایتخت': 'capital', 'پایتخت زیرزمین': 'capital'})
+CITY_ALIASES.update({k: k for k in CITIES})
+CITY_ALIASES.update({'بازار': 'market', 'بازار مرکزی': 'market', 'بندر': 'port', 'بندر قدیمی': 'port', 'ارگ': 'citadel', 'ارگ سلطنتی': 'citadel', 'صنعتی': 'industrial', 'منطقه صنعتی': 'industrial', 'پایتخت': 'capital', 'پایتخت زیرزمین': 'capital', 'زاغه': 'slums', 'معدن': 'mines', 'کازینو': 'casino', 'معبد': 'temple', 'انبار': 'arsenal', 'اسکله': 'harbor', 'بازار شب': 'bazaar', 'دژ': 'fort', 'آزمایشگاه': 'lab', 'کاخ': 'palace'})
 
 
 def empire_keyboard(owner_id: int):
@@ -35,22 +37,9 @@ def empire_keyboard(owner_id: int):
 @router.message(F.text.in_({'امپراتوری', 'امپراطوری', 'empire'}))
 async def empire_menu(message: Message):
     await message.answer(
-        '🏙️ امپراتوری — اقتصاد و قلمرو\n\n'
-        '/empire_daily — پاداش ۱۰۰ سکه‌ای هر ۲۴ ساعت\n'
-        '/empire_work — دریافت ۲۵ سکه هر ساعت\n'
-        '/empire_buy workshop|club|factory — خرید یا ارتقای کسب‌وکار\n'
-        '/empire_collect workshop|club|factory — جمع‌آوری درآمد هر ساعت\n'
-        '/empire_assets — دارایی‌های اقتصادی\n/empire_top — رتبه‌بندی ثروت\n\n'
-        '/empire_cities — نقشهٔ قلمروها و قیمت‌ها\n'
-        '/empire_city_buy market|port|citadel|industrial|capital — خرید قلمرو آزاد\n'
-        '/empire_tax market — جمع‌آوری مالیات هر ۶ ساعت\n'
-        '/empire_defend market — ارتقای دفاع قلمرو\n'
-        '/empire_war market port — حمله از قلمرو اول به دومی\n'
-        '/empire_wars — جنگ‌های در جریان\n'
-        '/empire_war_resolve شناسه — نهایی‌کردن جنگ پس از ۱۰ دقیقه\n'
-        '/empire_army — مشاهدهٔ ارتش\n/empire_recruit تعداد — استخدام سرباز (هر سرباز ۲۰ سکه)\n/empire_disband تعداد — مرخص‌کردن سرباز\n'
-        '/empire_my_cities — قلمروهای تو\n/empire_city_top — رتبه‌بندی فرمانروایان\n\n'
-        'مالیات هر قلمرو هر ۶ ساعت قابل دریافت است؛ دفاع تا سطح ۵ ارتقا می‌یابد.',
+        'امپراتوری
+'
+        'از دکمه‌ها استفاده کن یا بنویس: پاداش، کار، ارتش، قلمروها، ارتش پیشرفته',
         reply_markup=empire_keyboard(message.from_user.id))
 
 
@@ -61,6 +50,10 @@ async def empire_daily(message: Message):
         reward, balance = await service.claim_daily(message.from_user.id)
         try:
             await event_service.add_score(message.from_user.id, 10, 'economy')
+            try:
+                await daily_service.progress(message.from_user.id, 'daily', 1)
+            except Exception:
+                pass
         except Exception:
             pass
         await message.answer(f'🎁 پاداش روزانه: +{reward} سکه\n💰 موجودی: {balance}')
@@ -75,6 +68,10 @@ async def empire_work(message: Message):
         reward, balance = await service.work(message.from_user.id)
         try:
             await event_service.add_score(message.from_user.id, 5, 'economy')
+            try:
+                await daily_service.progress(message.from_user.id, 'work', 1)
+            except Exception:
+                pass
         except Exception:
             pass
         await message.answer(f'🧰 {reward} سکه گرفتی!\n💰 موجودی: {balance}')
@@ -307,6 +304,10 @@ async def empire_menu_buttons(call: CallbackQuery):
             reward, balance = await service.claim_daily(uid)
             try:
                 await event_service.add_score(uid, 10, 'economy')
+                try:
+                    await daily_service.progress(uid, 'daily', 1)
+                except Exception:
+                    pass
             except Exception:
                 pass
             await call.message.answer(f'🎁 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
@@ -314,6 +315,10 @@ async def empire_menu_buttons(call: CallbackQuery):
             reward, balance = await service.work(uid)
             try:
                 await event_service.add_score(uid, 5, 'economy')
+                try:
+                    await daily_service.progress(uid, 'work', 1)
+                except Exception:
+                    pass
             except Exception:
                 pass
             await call.message.answer(f'🧰 +{reward} سکه. موجودی: {balance}', reply_markup=kb)

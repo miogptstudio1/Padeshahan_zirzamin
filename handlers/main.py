@@ -5,6 +5,9 @@ from core.database import upsert_user, db
 from core import staff as staff_service
 from config import WEB_APP_URL
 from membership import membership_status, join_keyboard
+from games.reputation import service as rep_service
+from games.empire import crime as crime_service
+from games.empire import army_advanced
 from handlers.guide import GUIDE_SHORT, GUIDE_FULL
 
 router = Router()
@@ -12,19 +15,20 @@ router = Router()
 
 async def menu(user_id: int | None = None, show_web_app: bool = False):
     rows = [
-        [InlineKeyboardButton(text='🎭 مافیای کلاسیک', callback_data='menu:mafia')],
-        [
-            InlineKeyboardButton(text='🏙️ امپراتوری', callback_data='menu:empire'),
-            InlineKeyboardButton(text='🃏 کودتا', callback_data='menu:coup'),
-        ],
-        [
-            InlineKeyboardButton(text='🛒 فروشگاه', callback_data='menu:shop'),
-            InlineKeyboardButton(text='👤 پروفایل', callback_data='menu:profile'),
-        ],
-        [
-            InlineKeyboardButton(text='📜 قوانین', callback_data='menu:rules'),
-            InlineKeyboardButton(text='❓ راهنما', callback_data='menu:help'),
-        ],
+        [InlineKeyboardButton(text='🎭 مافیا', callback_data='menu:mafia'),
+         InlineKeyboardButton(text='🃏 کودتا', callback_data='menu:coup')],
+        [InlineKeyboardButton(text='🏙️ امپراتوری', callback_data='menu:empire'),
+         InlineKeyboardButton(text='⚔️ ارتش', callback_data='menu:army')],
+        [InlineKeyboardButton(text='🛒 فروشگاه', callback_data='menu:shop'),
+         InlineKeyboardButton(text='🏪 بازار', callback_data='menu:market')],
+        [InlineKeyboardButton(text='🕶️ خلاف', callback_data='menu:crime'),
+         InlineKeyboardButton(text='👹 باس', callback_data='menu:boss')],
+        [InlineKeyboardButton(text='🕵️ جاسوسی', callback_data='menu:spy'),
+         InlineKeyboardButton(text='📋 مأموریت', callback_data='menu:missions')],
+        [InlineKeyboardButton(text='🏠 خاندان', callback_data='menu:family'),
+         InlineKeyboardButton(text='🎉 ایونت', callback_data='menu:event')],
+        [InlineKeyboardButton(text='👤 پروفایل', callback_data='menu:profile'),
+         InlineKeyboardButton(text='❓ راهنما', callback_data='menu:help')],
     ]
     if show_web_app and WEB_APP_URL.startswith("https://"):
         rows.insert(0, [InlineKeyboardButton(text='🌐 ورود به وب‌اپ', web_app=WebAppInfo(url=WEB_APP_URL))])
@@ -45,16 +49,11 @@ async def start(message: Message):
     joined, _, error = await membership_status(message.bot, message.from_user.id)
     if not joined:
         text = (
-            "⚠️ اوه! فعلاً نمی‌تونم عضویتت رو چک کنم.\n\n"
-            "یه کم صبر کن و دوباره روی «بررسی عضویت» بزن 🔄\n"
-            "اگه مشکل ادامه داشت، به ادمین بگو ربات رو توی کانال‌ها ادمین کنه 🛠️"
+            "چک عضویت الان گیر کرد.\n"
+            "یه کم صبر کن دوباره بزن. اگه ادامه داشت به ادمین بگو."
             if error else
-            "👑 به پادشاهان زیرزمین خوش اومدی!\n\n"
-            "برای ورود به دنیای بازی‌ها، باید عضو هر دو کانال باشی:\n\n"
-            "1️⃣ اول روی دکمه «📢 عضویت در کانال اول» بزن و عضو شو\n"
-            "2️⃣ بعد روی دکمه «🌿 عضویت در کانال دوم» بزن و عضو شو\n"
-            "3️⃣ وقتی عضو شدی، روی «✅ بررسی عضویت» بزن تا وارد شی 🚀\n\n"
-            "منتظرتم... 😉"
+            "اول برو تو هر دو کانال عضو شو، بعد «بررسی عضویت» رو بزن.\n"
+            "بدون عضویت راهت نمی‌دم."
         )
         await message.answer(text, reply_markup=join_keyboard())
         return
@@ -73,17 +72,14 @@ async def start(message: Message):
         message.from_user.username,
         message.from_user.full_name or str(message.from_user.id),
     )
-    name = message.from_user.full_name or message.from_user.username or "فرمانروا"
+    name = message.from_user.full_name or message.from_user.username or "رفیق"
     kb = await menu(message.from_user.id, message.chat.type == 'private')
     await message.answer(
-        f"👑 سلام <b>{name}</b>!\n"
-        f"به <b>پادشاهان زیرزمین</b> خوش اومدی 🔥\n\n"
-        f"🎮 سه بازی منتظرته:\n"
-        f"• 🎭 مافیا — نقش مخفی و رأی‌گیری\n"
-        f"• 🏙️ امپراتوری — اقتصاد، قلمرو و جنگ\n"
-        f"• 🃏 کودتا — بلوف و کارت\n\n"
-        f"از منو انتخاب کن یا بنویس:\n"
-        f"• <code>شروع</code> · <code>پروفایل</code> · <code>راهنما</code>",
+        f"سلام {name}\n"
+        f"ربات آماده‌ست.\n\n"
+        f"مافیا و کودتا تو گروه، امپراتوری و فروشگاه هم همین‌جا.\n"
+        f"اگه گیر کردی بزن: <code>راهنما</code>\n\n"
+        f"وب‌اپ فقط از دکمه داخل ربات باز می‌شه، لینک مرورگر فایده نداره.",
         reply_markup=kb,
         parse_mode="HTML",
     )
@@ -100,6 +96,20 @@ async def profile(message: Message):
     if row.get("is_banned"):
         await message.answer("🚫 حساب شما مسدود است.")
         return
+    try:
+        rep = await rep_service.get(message.from_user.id)
+        rep_score, rep_label = rep["score"], rep["label"]
+    except Exception:
+        rep_score, rep_label = 0, "عادی"
+    try:
+        hp = await crime_service.hp_status(message.from_user.id)
+        hp_txt = f"{hp['hp']}/{hp['max_hp']}"
+    except Exception:
+        hp_txt = "—"
+    try:
+        army_pow = (await army_advanced.total_army_power(message.from_user.id)).get("total", 0)
+    except Exception:
+        army_pow = 0
     win_rate = 0
     if row["games_played"]:
         win_rate = round(100 * row["wins"] / row["games_played"], 1)
@@ -109,6 +119,9 @@ async def profile(message: Message):
         f"🪙 سکه: <b>{row['coins']:,}</b>\n"
         f"🎮 بازی‌ها: {row['games_played']}\n"
         f"🏆 بردها: {row['wins']} ({win_rate}%)\n"
+        f"⭐ شهرت: {rep_label} ({rep_score})\n"
+        f"❤️ جان: {hp_txt}\n"
+        f"⚔️ قدرت ارتش: {army_pow}\n"
         f"🆔 آیدی: <code>{message.from_user.id}</code>",
         parse_mode="HTML",
     )
@@ -168,19 +181,19 @@ async def check_required_membership(call: CallbackQuery):
         call.from_user.username,
         call.from_user.full_name or str(call.from_user.id),
     )
-    await call.answer("عضویت تأیید شد! خوش اومدی 🎉")
+    await call.answer("باشه، عضویت اوکیه")
     kb = await menu(call.from_user.id, call.message.chat.type == 'private' if call.message else True)
     if call.message:
         try:
             await call.message.edit_text(
                 "✅ عضویت هر دو کانال تأیید شد!\n\n"
-                "حالا می‌تونی وارد دنیای پادشاهان زیرزمین شی 👑\n"
+                "اوکیه، می‌تونی بازی کنی.\n"
                 "یکی از بازی‌ها رو از منوی پایین انتخاب کن:",
                 reply_markup=kb,
             )
         except Exception:
             await call.message.answer(
-                "✅ عضویت هر دو کانال تأیید شد! خوش اومدی 🎉",
+                "عضویت اوکیه، بزن بریم",
                 reply_markup=kb,
             )
 
@@ -188,13 +201,25 @@ async def check_required_membership(call: CallbackQuery):
 @router.callback_query(F.data == "menu:profile")
 async def menu_profile(call: CallbackQuery):
     await call.answer()
-    # reuse profile logic via synthetic text
-    call.message.from_user = call.from_user  # type: ignore
     async with db().acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1', call.from_user.id)
     if not row:
-        await call.message.answer('اول باید «شروع» رو بزنی 😊')
+        await call.message.answer('اول باید «شروع» رو بزنی')
         return
+    try:
+        rep = await rep_service.get(call.from_user.id)
+        rep_score, rep_label = rep["score"], rep["label"]
+    except Exception:
+        rep_score, rep_label = 0, "عادی"
+    try:
+        hp = await crime_service.hp_status(call.from_user.id)
+        hp_txt = f"{hp['hp']}/{hp['max_hp']}"
+    except Exception:
+        hp_txt = "—"
+    try:
+        army_pow = (await army_advanced.total_army_power(call.from_user.id)).get("total", 0)
+    except Exception:
+        army_pow = 0
     win_rate = round(100 * row["wins"] / row["games_played"], 1) if row["games_played"] else 0
     await call.message.answer(
         f"👤 <b>پروفایل تو</b>\n\n"
@@ -202,6 +227,9 @@ async def menu_profile(call: CallbackQuery):
         f"🪙 سکه: <b>{row['coins']:,}</b>\n"
         f"🎮 بازی‌ها: {row['games_played']}\n"
         f"🏆 بردها: {row['wins']} ({win_rate}%)\n"
+        f"⭐ شهرت: {rep_label} ({rep_score})\n"
+        f"❤️ جان: {hp_txt}\n"
+        f"⚔️ قدرت ارتش: {army_pow}\n"
         f"🆔 آیدی: <code>{call.from_user.id}</code>",
         parse_mode="HTML",
     )

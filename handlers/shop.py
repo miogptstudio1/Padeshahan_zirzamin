@@ -151,10 +151,8 @@ def _format_box_result(result: dict) -> str:
 @router.message(F.text.in_({"فروشگاه", "مغازه", "شاپ", "store", "shop"}))
 async def shop_home(message: Message):
     await message.answer(
-        "🛒 <b>فروشگاه پادشاهان زیرزمین</b>\n\n"
-        "با دکمه‌های زیر خرید کن، موجودی ببین یا صندوق باز کن.\n"
-        "دستور متنی: <code>خرید نام‌کالا</code> · <code>تجهیز نام</code> · <code>موجودی</code>",
-        parse_mode="HTML",
+        "فروشگاه\n"
+        "از دکمه‌ها بخر یا بنویس: خرید ... / تجهیز ... / موجودی",
         reply_markup=catalog_keyboard(message.from_user.id),
     )
 
