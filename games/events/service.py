@@ -47,6 +47,48 @@ PRESETS = [
         "metric": "points",
         "days": 1,
     },
+
+    {
+        "event_key": "season_war",
+        "title": "جنگ بزرگ فصل",
+        "description": "امتیاز با جنگ قلمرو و حمله. جایزه سنگین برای سه نفر اول.",
+        "kind": "seasonal",
+        "reward_coins": 6000,
+        "reward_xp": 400,
+        "metric": "combat",
+        "days": 14,
+    },
+    {
+        "event_key": "season_wealth",
+        "title": "فصل ثروت",
+        "description": "با کار، پاداش و درآمد امتیاز بگیر.",
+        "kind": "seasonal",
+        "reward_coins": 4500,
+        "reward_xp": 300,
+        "metric": "economy",
+        "days": 14,
+    },
+    {
+        "event_key": "alliance_week",
+        "title": "هفته اتحادها",
+        "description": "فعالیت گروهی و رقابت. امتیاز رزمی و اقتصادی.",
+        "kind": "weekly",
+        "reward_coins": 3500,
+        "reward_xp": 220,
+        "metric": "points",
+        "days": 7,
+    },
+    {
+        "event_key": "winter_battle",
+        "title": "نبرد زمستانی",
+        "description": "فصل سرد — تمرکز روی جنگ و خلاف.",
+        "kind": "seasonal",
+        "reward_coins": 5000,
+        "reward_xp": 350,
+        "metric": "combat",
+        "days": 10,
+    },
+
 ]
 
 
