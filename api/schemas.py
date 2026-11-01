@@ -5,8 +5,8 @@ class RecruitRequest(BaseModel):
 
 
 class DeclareWarRequest(BaseModel):
-    attack_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
-    target_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
+    attack_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
+    target_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
 
 class CreateAllianceRequest(BaseModel):
     name: str = Field(min_length=3, max_length=64)
@@ -35,7 +35,7 @@ class DecideAlliancePactRequest(BaseModel):
 
 
 class DeclareAllianceWarRequest(BaseModel):
-    target_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
+    target_city_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
 
 
 class SupportAllianceWarRequest(BaseModel):
@@ -72,14 +72,22 @@ class AllianceVoteRequest(BaseModel):
 
 
 class EquipmentPurchaseRequest(BaseModel):
-    item_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
+    item_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
     quantity: int = Field(default=1, ge=1, le=10)
 
 class EquipmentEquipRequest(BaseModel):
-    item_key: str = Field(min_length=1, max_length=40, pattern=r"^[a-z_]+$")
+    item_key: str | None = Field(default=None, min_length=1, max_length=40, pattern=r"^[a-z0-9_]+$")
+    item_id: str | None = Field(default=None, min_length=1, max_length=40)
+    # فرانت قدیمی item_id می‌فرستاد
+
+    def resolved_key(self) -> str:
+        key = (self.item_key or self.item_id or "").strip()
+        if not key:
+            raise ValueError("item_key لازم است")
+        return key
 
 class EquipmentBoxRequest(BaseModel):
-    request_id: str = Field(min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
+    request_id: str | None = Field(default=None, min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class StaffGrantRequest(BaseModel):

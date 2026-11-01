@@ -7,6 +7,8 @@ from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -35,6 +37,11 @@ def _build_dispatcher():
     from handlers.events import router as events_router
     from handlers.family import router as family_router
     from handlers.crime import router as crime_router
+    from handlers.army import router as army_router
+    from handlers.market import router as market_router
+    from handlers.spy import router as spy_router
+    from handlers.boss import router as boss_router
+    from handlers.daily import router as daily_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -46,6 +53,11 @@ def _build_dispatcher():
     dp.include_router(events_router)
     dp.include_router(family_router)
     dp.include_router(crime_router)
+    dp.include_router(army_router)
+    dp.include_router(market_router)
+    dp.include_router(spy_router)
+    dp.include_router(boss_router)
+    dp.include_router(daily_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -106,6 +118,15 @@ async def lifespan(app: FastAPI):
         app.state.dispatcher = dp
         app.state.webhook_secret = WEBHOOK_SECRET or secrets.token_urlsafe(32)
         external_url = WEB_APP_URL.rstrip("/")
+        # Mini App menu button (chat menu → opens web app)
+        try:
+            if WEB_APP_URL.startswith("https://"):
+                from aiogram.types import MenuButtonWebApp, WebAppInfo
+                await bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(text="🌐 وب‌اپ", web_app=WebAppInfo(url=WEB_APP_URL))
+                )
+        except Exception as _menu_exc:
+            logging.warning("set_chat_menu_button failed: %s", _menu_exc)
         if external_url:
             webhook_url = external_url + "/telegram/webhook"
             await bot.set_webhook(
@@ -139,12 +160,37 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="پادشاهان زیرزمین API", version="0.31.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["Content-Type", "X-Telegram-Init-Data"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Translate FastAPI 422 into a readable Persian message for the web app."""
+    errs = []
+    for e in exc.errors():
+        loc = ".".join(str(x) for x in e.get("loc", ()) if x != "body")
+        msg = e.get("msg", "نامعتبر")
+        errs.append(f"{loc}: {msg}" if loc else msg)
+    detail = " · ".join(errs) if errs else "دادهٔ ارسالی نامعتبر است"
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 
-async def current_user(x_telegram_init_data: str | None = Header(default=None, alias="X-Telegram-Init-Data")) -> dict:
+
+async def current_user(
+    request: Request,
+    x_telegram_init_data: str | None = Header(default=None, alias="X-Telegram-Init-Data"),
+) -> dict:
+    # چند نام هدر رایج برای سازگاری با پروکسی/مرورگر
+    init = (x_telegram_init_data or "").strip()
+    if not init:
+        for k, v in request.headers.items():
+            if k.lower() in {"x-telegram-init-data", "x-telegram-initdata", "telegram-init-data"}:
+                init = (v or "").strip()
+                if init:
+                    break
+    if not init:
+        init = (request.query_params.get("initData") or request.query_params.get("tgWebAppData") or "").strip()
     try:
-        validated = validate_init_data(x_telegram_init_data or "", BOT_TOKEN)
+        validated = validate_init_data(init or "", BOT_TOKEN)
     except TelegramAuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     user = validated["user"]
@@ -374,15 +420,18 @@ async def buy_equipment(body: EquipmentPurchaseRequest, user: dict = Depends(cur
 @app.post("/api/empire/equipment/equip")
 async def equip_equipment(body: EquipmentEquipRequest, user: dict = Depends(current_user)):
     try:
-        return await equipment_service.equip(int(user["id"]), body.item_key)
+        key = body.resolved_key()
+        return await equipment_service.equip(int(user["id"]), key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/empire/equipment/box")
-async def open_equipment_box(body: EquipmentBoxRequest, user: dict = Depends(current_user)):
+async def open_equipment_box(body: EquipmentBoxRequest | None = None, user: dict = Depends(current_user)):
+    import secrets
     try:
-        return await equipment_service.open_box(int(user["id"]), body.request_id)
+        rid = (body.request_id if body and body.request_id else None) or secrets.token_urlsafe(12)
+        return await equipment_service.open_box(int(user["id"]), rid)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
