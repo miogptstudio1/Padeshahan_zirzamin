@@ -8,7 +8,10 @@ from core.database import db
 from games.empire import service as empire_service
 from games.empire.equipment import dashboard as equipment_dashboard
 from games.empire.engine import army_power_bonus
+from games.empire import army_advanced
 from games.events import service as event_service
+from games.daily import service as daily_service
+from games.reputation import service as rep_service
 
 ATTACK_COOLDOWN = 15 * 60  # 15 min
 CRIME_COOLDOWN = 5 * 60
@@ -23,8 +26,8 @@ async def ensure_hideout(user_id: int) -> dict[str, Any]:
         if row:
             return dict(row)
         await conn.execute(
-            """INSERT INTO player_hideouts(telegram_id, name, level, defense)
-               VALUES($1,'پناهگاه کوچک',1,5)
+            """INSERT INTO player_hideouts(telegram_id, name, level, defense, hp, max_hp)
+               VALUES($1,'پناهگاه کوچک',1,5,100,100)
                ON CONFLICT(telegram_id) DO NOTHING""",
             user_id,
         )
@@ -41,14 +44,50 @@ async def ensure_hideout(user_id: int) -> dict[str, Any]:
 
 
 async def grant_starter_pack(user_id: int) -> None:
-    """برای کاربر جدید: پناهگاه + سرباز کم."""
+    """برای کاربر جدید: پناهگاه + سرباز + قلمرو اولیه رایگان."""
     await ensure_hideout(user_id)
+    await _assign_starter_city(user_id)
+
+
+async def _assign_starter_city(user_id: int) -> str | None:
+    """یک outpost آزاد به بازیکن بده تا بتواند جنگ قلمرو راه بیندازد."""
+    user_id = int(user_id)
+    async with db().acquire() as conn:
+        owned = await conn.fetchval(
+            "SELECT city_key FROM empire_cities WHERE owner_id=$1 LIMIT 1", user_id
+        )
+        if owned:
+            return owned
+        free = await conn.fetchrow(
+            """SELECT city_key, name FROM empire_cities
+               WHERE owner_id IS NULL AND city_key LIKE 'outpost_%'
+               ORDER BY city_key LIMIT 1 FOR UPDATE"""
+        )
+        if not free:
+            # fallback: any free cheap city
+            free = await conn.fetchrow(
+                """SELECT city_key, name FROM empire_cities
+                   WHERE owner_id IS NULL AND price=0
+                   ORDER BY city_key LIMIT 1 FOR UPDATE"""
+            )
+        if not free:
+            return None
+        await conn.execute(
+            "UPDATE empire_cities SET owner_id=$2, defense_level=1, updated_at=NOW() WHERE city_key=$1",
+            free["city_key"],
+            user_id,
+        )
+        return free["city_key"]
 
 
 async def _power(user_id: int) -> int:
-    army = await empire_service.army_for(user_id)
-    soldiers = int(army.get("soldiers") or 0)
-    base = army_power_bonus(soldiers) + soldiers
+    try:
+        adv = await army_advanced.total_army_power(user_id)
+        base = int(adv.get("total") or 0)
+    except Exception:
+        army = await empire_service.army_for(user_id)
+        soldiers = int(army.get("soldiers") or 0)
+        base = army_power_bonus(soldiers) + soldiers
     try:
         eq = await equipment_dashboard(user_id)
         stats = eq.get("stats") or {}
@@ -98,6 +137,15 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
             if def_user["is_banned"]:
                 raise ValueError("هدف مسدود است.")
 
+    # چک جان
+    async with db().acquire() as conn:
+        ahp = await conn.fetchval("SELECT hp FROM player_hideouts WHERE telegram_id=$1", attacker_id)
+        dhp = await conn.fetchval("SELECT hp FROM player_hideouts WHERE telegram_id=$1", defender_id)
+    if ahp is not None and int(ahp) <= 0:
+        raise ValueError("جان تو تمام شده؛ اول «هیل» بزن.")
+    if dhp is not None and int(dhp) <= 0:
+        raise ValueError("هدف بی‌هوش است؛ فعلاً قابل حمله نیست.")
+
     atk_pow = await _power(attacker_id)
     def_pow = await _power(defender_id)
     # chance weighted by power
@@ -141,6 +189,37 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
                         fee,
                     )
                     stolen = -fee
+            # آسیب جانی
+            hp_damage = 0
+            def_hp_left = 100
+            if won:
+                hp_damage = max(8, min(40, 10 + (atk_pow - def_pow) // 5 + random.randint(0, 10)))
+                drow = await conn.fetchrow(
+                    "SELECT hp, max_hp FROM player_hideouts WHERE telegram_id=$1 FOR UPDATE",
+                    defender_id,
+                )
+                if drow:
+                    cur_hp = int(drow["hp"] or 100)
+                    def_hp_left = max(0, cur_hp - hp_damage)
+                    await conn.execute(
+                        "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
+                        defender_id,
+                        def_hp_left,
+                    )
+            else:
+                # مهاجم زخمی جزئی
+                fee_hp = random.randint(3, 12)
+                arow = await conn.fetchrow(
+                    "SELECT hp FROM player_hideouts WHERE telegram_id=$1 FOR UPDATE",
+                    attacker_id,
+                )
+                if arow:
+                    await conn.execute(
+                        "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
+                        attacker_id,
+                        max(1, int(arow["hp"] or 100) - fee_hp),
+                    )
+                hp_damage = fee_hp
             await conn.execute(
                 """INSERT INTO pvp_attacks(attacker_id,defender_id,stolen,attacker_power,defender_power,won)
                    VALUES($1,$2,$3,$4,$5,$6)""",
@@ -161,6 +240,15 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
         await event_service.add_score(attacker_id, 15 if won else 5, "combat")
     except Exception:
         pass
+    if won:
+        try:
+            await daily_service.progress(attacker_id, "attack", 1)
+        except Exception:
+            pass
+        try:
+            await rep_service.add(attacker_id, -3)
+        except Exception:
+            pass
 
     return {
         "won": won,
@@ -170,6 +258,8 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
         "defender_power": def_pow,
         "defender_name": def_user["display_name"] if def_user else str(defender_id),
         "balance": int(bal_atk),
+        "hp_damage": hp_damage,
+        "defender_hp": def_hp_left if won else None,
     }
 
 
@@ -376,3 +466,51 @@ async def hideout_status(user_id: int) -> dict[str, Any]:
     h = await ensure_hideout(user_id)
     power = await _power(user_id)
     return {"hideout": h, "power": power}
+
+HEAL_COOLDOWN = 10 * 60  # 10 minutes
+HEAL_AMOUNT = 35
+
+
+async def heal_self(user_id: int) -> dict:
+    user_id = int(user_id)
+    await ensure_hideout(user_id)
+    async with db().acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT hp, max_hp, last_heal_at FROM player_hideouts WHERE telegram_id=$1 FOR UPDATE",
+                user_id,
+            )
+            if not row:
+                raise ValueError("پناهگاه پیدا نشد.")
+            now = datetime.now(timezone.utc)
+            last = row["last_heal_at"]
+            if last is not None:
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                elapsed = (now - last).total_seconds()
+                if elapsed < HEAL_COOLDOWN:
+                    raise ValueError(f"هیل هنوز آماده نیست؛ {max(1, int(HEAL_COOLDOWN-elapsed)//60)} دقیقه صبر کن.")
+            hp = int(row["hp"] or 100)
+            max_hp = int(row["max_hp"] or 100)
+            if hp >= max_hp:
+                raise ValueError("جان تو کامل است.")
+            new_hp = min(max_hp, hp + HEAL_AMOUNT)
+            await conn.execute(
+                "UPDATE player_hideouts SET hp=$2, last_heal_at=NOW() WHERE telegram_id=$1",
+                user_id,
+                new_hp,
+            )
+    return {"hp": new_hp, "max_hp": max_hp, "healed": new_hp - hp}
+
+
+async def hp_status(user_id: int) -> dict:
+    h = await ensure_hideout(user_id)
+    return {
+        "hp": int(h.get("hp") or 100),
+        "max_hp": int(h.get("max_hp") or 100),
+        "name": h.get("name"),
+        "level": h.get("level"),
+        "defense": h.get("defense"),
+        "power": await _power(user_id),
+    }
+

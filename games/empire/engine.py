@@ -20,7 +20,44 @@ CITIES = {
     "citadel": {"name": "ارگ سلطنتی", "price": 2000, "tax": 120, "description": "مرکز نفوذ سیاسی"},
     "industrial": {"name": "منطقه صنعتی", "price": 4000, "tax": 250, "description": "کارگاه‌ها و کارخانه‌ها"},
     "capital": {"name": "پایتخت زیرزمین", "price": 8000, "tax": 500, "description": "گران‌ترین و پردرآمدترین قلمرو"},
+    "slums": {"name": "محلهٔ زاغه‌ها", "price": 350, "tax": 20, "description": "کوچه‌های تاریک و قاچاق"},
+    "mines": {"name": "معادن زغال", "price": 800, "tax": 45, "description": "منابع خام زیرزمین"},
+    "casino": {"name": "کازینو سیاه", "price": 1500, "tax": 90, "description": "قمار و پولشویی"},
+    "temple": {"name": "معبد سایه‌ها", "price": 2500, "tax": 140, "description": "مرکز آیین‌های مخفی"},
+    "arsenal": {"name": "انبار تسلیحات", "price": 3200, "tax": 180, "description": "سلاح و مهمات"},
+    "harbor": {"name": "اسکله مه", "price": 1800, "tax": 100, "description": "قاچاق دریایی"},
+    "bazaar": {"name": "بازار شب", "price": 600, "tax": 35, "description": "معاملات غیررسمی"},
+    "fort": {"name": "دژ مرزی", "price": 5000, "tax": 280, "description": "خط مقدم جنگ‌ها"},
+    "lab": {"name": "آزمایشگاه متروکه", "price": 2200, "tax": 130, "description": "تکنولوژی غیرقانونی"},
+    "palace": {"name": "کاخ زیرزمینی", "price": 10000, "tax": 600, "description": "نماد قدرت مطلق"},
+    # مناطق جدید نقشه (۰.۳۵)
+    "ruins_gate": {"name": "دروازه ویرانه‌ها", "price": 900, "tax": 50, "description": "شمال · ورودی سرزمین مرده"},
+    "bone_bridge": {"name": "پل استخوان", "price": 1100, "tax": 65, "description": "شمال · گذرگاه خطرناک"},
+    "frost_camp": {"name": "اردوگاه یخ", "price": 1600, "tax": 95, "description": "شمال · سرمای دائمی"},
+    "ash_market": {"name": "بازار خاکستر", "price": 700, "tax": 40, "description": "شرق · تجارت سیاه"},
+    "red_docks": {"name": "اسکله سرخ", "price": 1400, "tax": 85, "description": "شرق · قاچاق دریایی"},
+    "silk_den": {"name": "لانه ابریشم", "price": 2100, "tax": 125, "description": "شرق · ثروت پنهان"},
+    "cinder_pit": {"name": "گودال اخگر", "price": 1300, "tax": 75, "description": "جنوب · معدن داغ"},
+    "sand_keep": {"name": "دژ شن", "price": 2800, "tax": 160, "description": "جنوب · دفاع سخت"},
+    "mirage_well": {"name": "چاه سراب", "price": 950, "tax": 55, "description": "جنوب · آب و باج"},
+    "fog_alley": {"name": "کوچه مه", "price": 550, "tax": 32, "description": "غرب · کمین و دزدی"},
+    "iron_yard": {"name": "حیاط آهن", "price": 1900, "tax": 110, "description": "غرب · ساخت سلاح"},
+    "night_spire": {"name": "برج شب", "price": 4500, "tax": 260, "description": "غرب · دیده‌بانی بلند"},
+    "under_forum": {"name": "میدان زیر", "price": 1200, "tax": 70, "description": "مرکز · تجمع و سیاست"},
+    "black_vault": {"name": "خزانه سیاه", "price": 6000, "tax": 320, "description": "مرکز · ثروت سنگین"},
+    "echo_tunnels": {"name": "تونل پژواک", "price": 1700, "tax": 100, "description": "زیر · مسیر مخفی"},
 }
+STARTER_OUTPOSTS = {
+    f"outpost_{i}": {
+        "name": f"پناهگاه مرزی {i}",
+        "price": 0,
+        "tax": 12,
+        "description": "قلمرو اولیه بازیکن — پایگاه حمله",
+    }
+    for i in range(1, 61)
+}
+CITIES.update(STARTER_OUTPOSTS)
+
 
 
 def asset_cost(asset_key: str, current_level: int) -> int:

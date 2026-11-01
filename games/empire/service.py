@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 import random
 from core.database import db
 from games.empire.equipment_rules import item_stats
+from games.empire import army_advanced
 from games.empire.engine import (
     ASSETS, CITIES, DAILY_REWARD, WORK_REWARD, WORK_COOLDOWN_SECONDS,
     DAILY_COOLDOWN_SECONDS, MAX_ASSET_LEVEL, MAX_DEFENSE_LEVEL,
@@ -102,7 +103,7 @@ async def cities_list():
 
 
 async def city_buy(user_id: int, city_key: str) -> tuple[str,int,int]:
-    if city_key not in CITIES: raise ValueError("نام قلمرو نامعتبر است؛ از market، port، citadel، industrial یا capital استفاده کن.")
+    if city_key not in CITIES: raise ValueError("نام قلمرو نامعتبر است. از /empire_cities لیست را ببین.")
     async with db().acquire() as conn:
         async with conn.transaction():
             user=await conn.fetchrow("SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE",user_id)
@@ -261,6 +262,11 @@ async def declare_war(user_id: int, attack_city_key: str, target_city_key: str):
             power = attack_power(int(count), int(attack_city['defense_level']), roll)
             army = await conn.fetchval("SELECT soldiers FROM empire_armies WHERE telegram_id=$1", user_id)
             power += army_power_bonus(int(army or 0))
+            try:
+                adv = await army_advanced.total_army_power(user_id)
+                power += int(adv.get("unit_power") or 0) + int(adv.get("commander_power") or 0)
+            except Exception:
+                pass
             loadout = await conn.fetchrow("SELECT weapon_key,armor_key FROM empire_equipment_loadouts WHERE telegram_id=$1", user_id)
             if loadout:
                 power += item_stats(loadout['weapon_key'], loadout['armor_key'])['attack']
