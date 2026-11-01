@@ -411,7 +411,34 @@ body{
     try { tgApp.ready(); tgApp.expand(); } catch(e){}
     try { tgApp.setHeaderColor('#060d18'); tgApp.setBackgroundColor('#060d18'); } catch(e){}
   }
-  const initData = (tgApp && tgApp.initData) || '';
+
+  function readInitData(){
+    // 1) Official Mini App API
+    let data = (tgApp && tgApp.initData) ? String(tgApp.initData) : '';
+    // 2) Telegram sometimes puts it on the URL when opening the web app
+    if (!data) {
+      try {
+        const u = new URL(location.href);
+        data = u.searchParams.get('tgWebAppData')
+          || u.searchParams.get('TelegramWebviewProxy')
+          || '';
+        if (!data && location.hash) {
+          const hp = new URLSearchParams(location.hash.replace(/^#/, ''));
+          data = hp.get('tgWebAppData') || data;
+        }
+      } catch(e){}
+    }
+    // 3) short-lived cache from a previous successful open in this tab
+    if (!data) {
+      try { data = sessionStorage.getItem('tg_init_data') || ''; } catch(e){}
+    }
+    if (data) {
+      try { sessionStorage.setItem('tg_init_data', data); } catch(e){}
+    }
+    return data;
+  }
+
+  let initData = readInitData();
   let me = null, cities = [], busy = false;
   let currentTab = 'home';
   let chatMode = 'global'; // global | guild
@@ -474,7 +501,8 @@ body{
   });
 
   async function api(path, method='GET', body=null){
-    if (!initData) throw new Error('از داخل ربات تلگرام با دکمه وب‌اپ باز کن.');
+    if (!initData) initData = readInitData();
+    if (!initData) throw new Error('از داخل ربات تلگرام با دکمه «🌐 ورود به وب‌اپ» باز کن (لینک مرورگر کار نمی‌کند).');
     const res = await fetch(path, {
       method,
       headers: {
@@ -509,6 +537,14 @@ body{
         throw new Error('membership_gate');
       }
       if (typeof detail === 'string') throw new Error(detail);
+      if (Array.isArray(detail)) {
+        const msgs = detail.map(function(e){
+          if (typeof e === 'string') return e;
+          if (e && e.msg) return e.msg;
+          return JSON.stringify(e);
+        }).filter(Boolean);
+        throw new Error(msgs.join(' · ') || ('خطا ('+res.status+')'));
+      }
       if (detail && typeof detail === 'object' && detail.message) throw new Error(String(detail.message));
       throw new Error('خطا (' + res.status + ')');
     }
@@ -556,7 +592,7 @@ body{
       const hs = document.getElementById('heroSub');
       const hst = document.getElementById('heroStats');
       if (ht) ht.textContent = m.display_name || m.username || 'فرمانروا';
-      if (hs) hs.textContent = 'پادشاهان زیرزمین · فرماندهی آنلاین';
+      if (hs) hs.textContent = 'داشبورد بازی';
       if (hst) hst.innerHTML = [
         ['💰', fa(m.coins), 'سکه'],
         ['⚔️', fa(m.soldiers), 'سرباز'],
@@ -711,7 +747,7 @@ body{
         invEl.innerHTML = inv.map(it=>`<div class="list-row"><div><b>${it.equipped?'⚔️ ':''}${esc(it.name||it.key)}</b>
           <div class="muted">حمله +${fa(it.attack||0)} · دفاع +${fa(it.defense||0)}</div></div>
           <button class="btn" style="padding:6px 10px" ${it.equipped?'disabled':''} data-equip="${esc(it.id||it.key)}">${it.equipped?'مجهز':'تجهیز'}</button></div>`).join('');
-        invEl.querySelectorAll('[data-equip]').forEach(b=>b.addEventListener('click',()=>act('/api/empire/equipment/equip','POST',{item_id:b.dataset.equip},'تجهیز…')));
+        invEl.querySelectorAll('[data-equip]').forEach(b=>b.addEventListener('click',()=>act('/api/empire/equipment/equip','POST',{item_key:b.dataset.equip,item_id:b.dataset.equip},'تجهیز…')));
       }
       const shop = data.shop||[];
       const shopEl = document.getElementById('equipmentShop');
@@ -907,7 +943,10 @@ body{
   document.getElementById('activateShield').addEventListener('click',()=>{
     if(confirm('۵٬۰۰۰ سکه برای سپر؟')) act('/api/empire/alliance/shield','POST',null,'سپر…');
   });
-  document.getElementById('openEquipmentBox').addEventListener('click',()=>act('/api/empire/equipment/box','POST',null,'صندوق…'));
+  document.getElementById('openEquipmentBox').addEventListener('click',()=>{
+    const rid = 'box_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
+    act('/api/empire/equipment/box','POST',{request_id:rid},'صندوق…');
+  });
   document.getElementById('refreshEquipment').addEventListener('click',()=>loadEquipment());
   document.getElementById('searchAlliances').addEventListener('click', async ()=>{
     try {
@@ -1041,14 +1080,23 @@ body{
   if (initData) {
     refresh().catch(()=>{});
   } else {
-    const nav = document.getElementById('navAdmin');
-    if (nav) nav.style.display = 'none';
-    const pill = document.getElementById('connPill');
-    const title = document.getElementById('heroTitle');
-    const sub = document.getElementById('heroSub');
-    if (pill) pill.textContent = '🔐 ربات';
-    if (title) title.textContent = 'از ربات باز کن';
-    if (sub) sub.textContent = 'دکمه وب‌اپ داخل ربات تلگرام را بزن.';
+    // Retry once — telegram-web-app.js sometimes injects initData a tick later
+    setTimeout(function(){
+      initData = readInitData();
+      if (initData) {
+        refresh().catch(function(){});
+        return;
+      }
+      const nav = document.getElementById('navAdmin');
+      if (nav) nav.style.display = 'none';
+      const pill = document.getElementById('connPill');
+      const title = document.getElementById('heroTitle');
+      const sub = document.getElementById('heroSub');
+      if (pill) pill.textContent = '🔐 تلگرام';
+      if (title) title.textContent = 'از ربات باز کن';
+      if (sub) sub.innerHTML = 'اینجا فقط از داخل تلگرام باز می‌شه.<br>تو ربات بزن شروع، بعد دکمه وب‌اپ.';
+      toast('وب‌اپ را از دکمه داخل ربات باز کن', 'lose');
+    }, 400);
   }
 })();
 </script>
