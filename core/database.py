@@ -57,7 +57,7 @@ SCHEMA = [
  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
 """CREATE TABLE IF NOT EXISTS empire_cities (
- city_key TEXT PRIMARY KEY, name TEXT NOT NULL, price BIGINT NOT NULL CHECK(price > 0),
+ city_key TEXT PRIMARY KEY, name TEXT NOT NULL, price BIGINT NOT NULL CHECK(price >= 0),
  tax_income BIGINT NOT NULL CHECK(tax_income >= 0), description TEXT NOT NULL DEFAULT '',
  owner_id BIGINT REFERENCES users(telegram_id) ON DELETE SET NULL,
  defense_level INTEGER NOT NULL DEFAULT 0 CHECK(defense_level BETWEEN 0 AND 5),
@@ -254,6 +254,65 @@ SCHEMA = [
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
 """CREATE INDEX IF NOT EXISTS staff_audit_log_recent ON staff_audit_log(id DESC)""",
+"""CREATE TABLE IF NOT EXISTS empire_army_units (
+ telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ unit_key TEXT NOT NULL,
+ quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+ PRIMARY KEY (telegram_id, unit_key)
+)""",
+"""CREATE TABLE IF NOT EXISTS empire_commanders (
+ id BIGSERIAL PRIMARY KEY,
+ telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ commander_key TEXT NOT NULL,
+ name TEXT NOT NULL,
+ level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 20),
+ hired_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ UNIQUE (telegram_id, commander_key)
+)""",
+"""CREATE TABLE IF NOT EXISTS market_listings (
+ id BIGSERIAL PRIMARY KEY,
+ seller_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ item_key TEXT NOT NULL,
+ quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
+ price INTEGER NOT NULL CHECK (price >= 1),
+ status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','sold','cancelled')),
+ buyer_id BIGINT REFERENCES users(telegram_id) ON DELETE SET NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ closed_at TIMESTAMPTZ
+)""",
+"""CREATE INDEX IF NOT EXISTS market_listings_open ON market_listings(status, created_at DESC)""",
+"""CREATE TABLE IF NOT EXISTS spy_reports (
+ id BIGSERIAL PRIMARY KEY,
+ spy_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ target_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ success BOOLEAN NOT NULL DEFAULT TRUE,
+ report TEXT NOT NULL DEFAULT '',
+ cost INTEGER NOT NULL DEFAULT 0,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+)""",
+"""CREATE INDEX IF NOT EXISTS spy_reports_spy ON spy_reports(spy_id, created_at DESC)""",
+"""CREATE TABLE IF NOT EXISTS world_bosses (
+ id BIGSERIAL PRIMARY KEY,
+ boss_key TEXT NOT NULL,
+ name TEXT NOT NULL,
+ max_hp BIGINT NOT NULL,
+ hp BIGINT NOT NULL,
+ reward_pool INTEGER NOT NULL DEFAULT 5000,
+ status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','defeated')),
+ starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ ends_at TIMESTAMPTZ,
+ defeated_at TIMESTAMPTZ
+)""",
+"""CREATE TABLE IF NOT EXISTS world_boss_damage (
+ boss_id BIGINT NOT NULL REFERENCES world_bosses(id) ON DELETE CASCADE,
+ telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+ damage BIGINT NOT NULL DEFAULT 0,
+ hits INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY (boss_id, telegram_id)
+)""",
+"""CREATE INDEX IF NOT EXISTS world_boss_damage_rank ON world_boss_damage(boss_id, damage DESC)"""
+
+,
 """CREATE TABLE IF NOT EXISTS game_events (
  id BIGSERIAL PRIMARY KEY,
  event_key TEXT NOT NULL UNIQUE,
@@ -318,8 +377,11 @@ SCHEMA = [
  name TEXT NOT NULL DEFAULT 'پناهگاه کوچک',
  level INTEGER NOT NULL DEFAULT 1 CHECK (level >= 1 AND level <= 20),
  defense INTEGER NOT NULL DEFAULT 5,
+ hp INTEGER NOT NULL DEFAULT 100,
+ max_hp INTEGER NOT NULL DEFAULT 100,
  last_attacked_at TIMESTAMPTZ,
  last_crime_at TIMESTAMPTZ,
+ last_heal_at TIMESTAMPTZ,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
 """CREATE TABLE IF NOT EXISTS pvp_attacks (
@@ -355,13 +417,17 @@ async def connect_db():
     async with pool.acquire() as conn:
         for statement in SCHEMA:
             await conn.execute(statement)
-        cities = [
-            ('market', 'بازار مرکزی', 500, 30, 'قلب تجارت شهر'),
-            ('port', 'بندر قدیمی', 1000, 60, 'مسیر بازرگانی و واردات'),
-            ('citadel', 'ارگ سلطنتی', 2000, 120, 'مرکز نفوذ سیاسی'),
-            ('industrial', 'منطقه صنعتی', 4000, 250, 'کارگاه‌ها و کارخانه‌ها'),
-            ('capital', 'پایتخت زیرزمین', 8000, 500, 'گران‌ترین و پردرآمدترین قلمرو'),
-        ]
+        for alt in (
+            "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS hp INTEGER NOT NULL DEFAULT 100",
+            "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS max_hp INTEGER NOT NULL DEFAULT 100",
+            "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS last_heal_at TIMESTAMPTZ",
+        ):
+            try:
+                await conn.execute(alt)
+            except Exception:
+                pass
+        from games.empire.engine import CITIES as _CITIES
+        cities = [(k, v["name"], int(v["price"]), int(v["tax"]), v.get("description") or "") for k, v in _CITIES.items()]
         await conn.executemany("""INSERT INTO empire_cities(city_key,name,price,tax_income,description)
             VALUES($1,$2,$3,$4,$5) ON CONFLICT(city_key) DO NOTHING""", cities)
 
