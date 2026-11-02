@@ -17,6 +17,7 @@ from handlers.market import router as market_router
 from handlers.spy import router as spy_router
 from handlers.boss import router as boss_router
 from handlers.daily import router as daily_router
+from handlers.pulse import router as pulse_router
 from games.empire import service as empire_service
 from games.empire.engine import war_result_message
 from membership import RequiredMembershipMiddleware
@@ -25,6 +26,11 @@ async def empire_war_scheduler(bot):
  """Poll PostgreSQL for expired wars and notify both sides automatically."""
  while True:
   try:
+   try:
+    from games.world_pulse import service as pulse_service
+    await pulse_service.maybe_spawn_hourly_pulse()
+   except Exception:
+    logging.exception('world pulse tick failed')
    results = await empire_service.resolve_expired_wars(limit=20)
    for result in results:
     message = war_result_message(result)
@@ -64,6 +70,7 @@ async def main():
  dp.include_router(spy_router)
  dp.include_router(boss_router)
  dp.include_router(daily_router)
+ dp.include_router(pulse_router)
  dp.include_router(callbacks_router)
  dp.include_router(mafia_router)
  dp.include_router(coup_router)
