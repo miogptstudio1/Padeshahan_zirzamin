@@ -87,6 +87,7 @@ async def boss_status(user_id: int | None = None) -> dict[str, Any]:
 
 async def attack_boss(user_id: int) -> dict[str, Any]:
     user_id = int(user_id)
+    await crime_service.assert_alive(user_id)
     boss = await ensure_boss()
     if boss["status"] != "active" or int(boss["hp"]) <= 0:
         raise ValueError("این باس تموم شده. یکی جدید میاد.")

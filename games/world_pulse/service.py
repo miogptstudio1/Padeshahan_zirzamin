@@ -267,6 +267,7 @@ async def ensure_group_boss(chat_id: int, force_new: bool = False) -> dict[str, 
 
 async def attack_group_boss(chat_id: int, user_id: int) -> dict[str, Any]:
     chat_id, user_id = int(chat_id), int(user_id)
+    await crime_service.assert_alive(user_id)
     boss = await ensure_group_boss(chat_id, force_new=False)
     if int(boss["hp"]) <= 0 or boss["status"] != "active":
         boss = await ensure_group_boss(chat_id, force_new=True)

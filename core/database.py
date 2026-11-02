@@ -382,6 +382,7 @@ SCHEMA = [
  last_attacked_at TIMESTAMPTZ,
  last_crime_at TIMESTAMPTZ,
  last_heal_at TIMESTAMPTZ,
+ died_at TIMESTAMPTZ,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
 """CREATE TABLE IF NOT EXISTS pvp_attacks (
@@ -421,6 +422,7 @@ async def connect_db():
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS hp INTEGER NOT NULL DEFAULT 100",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS max_hp INTEGER NOT NULL DEFAULT 100",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS last_heal_at TIMESTAMPTZ",
+            "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS died_at TIMESTAMPTZ",
             # دیتابیس قدیمی: price > 0 — outpost با قیمت ۰ باید مجاز باشد
             "ALTER TABLE empire_cities DROP CONSTRAINT IF EXISTS empire_cities_price_check",
             "ALTER TABLE empire_cities ADD CONSTRAINT empire_cities_price_check CHECK (price >= 0)",
