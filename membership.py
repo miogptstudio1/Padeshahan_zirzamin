@@ -31,7 +31,7 @@ MEMBERSHIP_ERROR_TEXT = (
 # Plain-text triggers that count as "using the bot" (without leading /)
 BOT_TEXT_TRIGGERS = {
     "شروع", "استارت", "start",
-    "پروفایل", "پروفایل من", "profile",
+    "پروفایل", "جنسیت", "جنس", "پروفایل من", "profile",
     "راهنما", "کمک", "هلپ", "help", "راهنما کامل", "راهنمای کامل", "راهنماکامل", "guide",
     "ادمین", "مدیریت", "پنل ادمین", "admin",
     "آمار", "stats",
