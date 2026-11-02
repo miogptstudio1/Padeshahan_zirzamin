@@ -19,6 +19,7 @@ from handlers.boss import router as boss_router
 from handlers.daily import router as daily_router
 from handlers.pulse import router as pulse_router
 from handlers.gender import router as gender_router
+from handlers.alliance import router as alliance_router
 from games.empire import service as empire_service
 from games.empire.engine import war_result_message
 from membership import RequiredMembershipMiddleware
@@ -73,6 +74,7 @@ async def main():
  dp.include_router(daily_router)
  dp.include_router(pulse_router)
  dp.include_router(gender_router)
+ dp.include_router(alliance_router)
  dp.include_router(callbacks_router)
  dp.include_router(mafia_router)
  dp.include_router(coup_router)
