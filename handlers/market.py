@@ -5,6 +5,7 @@ import re
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from games.market import service as market_svc
 from games.empire.equipment_rules import ITEMS
@@ -142,11 +143,11 @@ async def market_cb(call):
             lines = ["🏪 بازار\n"] + [
                 f"#{L['id']} {L['item_name']} — {L['price']}🪙" for L in rows
             ] or ["خالی"]
-            await call.message.answer("\n".join(lines), reply_markup=market_keyboard(owner, rows))
+            await panel_update(call, "\n".join(lines), reply_markup=market_keyboard(owner, rows))
         elif action == "buy" and len(parts) > 3:
             r = await market_svc.buy_listing(owner, int(parts[3]))
             await call.answer("خرید شد")
-            await call.message.answer(f"✅ {r['item']} (−{r['price']}) · 💰 {r['balance']}")
+            await panel_update(call, f"✅ {r['item']} (−{r['price']}) · 💰 {r['balance']}")
         else:
             await call.answer("نامعتبر", show_alert=True)
     except ValueError as e:

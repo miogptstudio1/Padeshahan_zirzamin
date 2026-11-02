@@ -5,6 +5,7 @@ import uuid
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from games.empire import equipment as equipment_service
 from games.empire.equipment_rules import ITEMS, BOX_PRICE
@@ -269,13 +270,13 @@ async def shop_callbacks(call: CallbackQuery):
     try:
         if action == "home":
             await call.answer()
-            await call.message.answer(
+            await panel_update(call, 
                 "🛒 فروشگاه",
                 reply_markup=catalog_keyboard(call.from_user.id),
             )
         elif action == "list":
             await call.answer()
-            await call.message.answer(
+            await panel_update(call, 
                 _format_catalog(),
                 parse_mode="HTML",
                 reply_markup=catalog_keyboard(call.from_user.id),
@@ -283,7 +284,7 @@ async def shop_callbacks(call: CallbackQuery):
         elif action == "inv":
             await call.answer()
             data = await equipment_service.dashboard(call.from_user.id)
-            await call.message.answer(
+            await panel_update(call, 
                 _format_inventory(data),
                 parse_mode="HTML",
                 reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
@@ -292,7 +293,7 @@ async def shop_callbacks(call: CallbackQuery):
             await call.answer("خرید…")
             result = await equipment_service.buy(call.from_user.id, extra, 1)
             data = await equipment_service.dashboard(call.from_user.id)
-            await call.message.answer(
+            await panel_update(call, 
                 f"✅ {result.get('item')} خریده شد (−{result.get('cost')}🪙)\nموجودی: {result.get('coins')}",
                 reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
             )
@@ -301,7 +302,7 @@ async def shop_callbacks(call: CallbackQuery):
             result = await equipment_service.equip(call.from_user.id, extra)
             stats = result.get("stats") or {}
             data = await equipment_service.dashboard(call.from_user.id)
-            await call.message.answer(
+            await panel_update(call, 
                 f"🔧 <b>{result.get('item')}</b> فعال شد\nATK {stats.get('attack', 0)} · DEF {stats.get('defense', 0)}",
                 parse_mode="HTML",
                 reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
@@ -309,7 +310,7 @@ async def shop_callbacks(call: CallbackQuery):
         elif action == "box":
             await call.answer("صندوق…")
             result = await equipment_service.open_box(call.from_user.id, str(uuid.uuid4()))
-            await call.message.answer(
+            await panel_update(call, 
                 _format_box_result(result),
                 parse_mode="HTML",
                 reply_markup=shop_keyboard(call.from_user.id),
@@ -321,6 +322,6 @@ async def shop_callbacks(call: CallbackQuery):
     except Exception as e:
         await call.answer("خطا", show_alert=True)
         try:
-            await call.message.answer(f"❌ {e}")
+            await panel_update(call, f"❌ {e}")
         except Exception:
             pass

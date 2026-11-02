@@ -10,11 +10,16 @@ from games.empire import crime as crime_service
 from games.events import service as event_service
 from games.daily import service as daily_service
 from games.reputation import service as rep_service
+from games.world_pulse import service as pulse_service
 
 BOSS_PRESETS = [
-    {"boss_key": "shadow_colossus", "name": "غول سایه", "max_hp": 50000, "reward_pool": 8000},
-    {"boss_key": "iron_wraith", "name": "شبح آهنین", "max_hp": 35000, "reward_pool": 5500},
-    {"boss_key": "ash_dragon", "name": "اژدهای خاکستر", "max_hp": 80000, "reward_pool": 12000},
+    {"boss_key": "shadow_colossus", "name": "غول سایه", "max_hp": 120000, "reward_pool": 8000},
+    {"boss_key": "iron_wraith", "name": "شبح آهنین", "max_hp": 250000, "reward_pool": 5500},
+    {"boss_key": "ash_dragon", "name": "اژدهای خاکستر", "max_hp": 200000, "reward_pool": 12000},
+    {"boss_key": "bone_collector", "name": "استخوان‌چین", "max_hp": 110000, "reward_pool": 7000},
+    {"boss_key": "night_baron", "name": "بارون شب", "max_hp": 150000, "reward_pool": 9500},
+    {"boss_key": "toxic_hydra", "name": "هیدرای سمی", "max_hp": 250000, "reward_pool": 14000},
+    {"boss_key": "steel_golem", "name": "غول فولادی", "max_hp": 180000, "reward_pool": 11000},
 ]
 
 
@@ -88,9 +93,13 @@ async def attack_boss(user_id: int) -> dict[str, Any]:
 
     try:
         power = await army_advanced.total_army_power(user_id)
-        atk = max(15, int(power.get("total") or 20) // 2 + random.randint(5, 25))
+        atk = max(8, int(power.get("total") or 20) // 4 + random.randint(3, 12))
     except Exception:
         atk = random.randint(20, 60)
+    try:
+        atk = max(1, int(atk * await pulse_service.buff_multiplier("boss_damage") * max(await pulse_service.buff_multiplier("damage"), 1.0)))
+    except Exception:
+        pass
 
     async with db().acquire() as conn:
         async with conn.transaction():
@@ -153,10 +162,11 @@ async def attack_boss(user_id: int) -> dict[str, Any]:
         await rep_service.add(user_id, 1)
     except Exception:
         pass
-    # بعد از ضربه به باس، جان بازیکن پر می‌شود
+    # ضربه به باس → جان بازیکن کم می‌شود
     player_hp = None
     try:
-        player_hp = await crime_service.restore_full_hp(user_id)
+        lost = max(8, min(35, 10 + random.randint(5, 20)))
+        player_hp = await crime_service.damage_hp(user_id, lost)
     except Exception:
         player_hp = None
     return {

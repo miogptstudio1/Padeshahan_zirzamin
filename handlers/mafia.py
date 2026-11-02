@@ -2,6 +2,29 @@ import asyncio
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
+
+async def format_mafia_lobby(room_id: int) -> str:
+    room = await service.get_room(room_id)
+    players = await service.room_players(room_id)
+    status = (room or {}).get('status', 'lobby')
+    labels = {
+        'lobby': 'ثبت‌نام', 'intro_day': 'روز معارفه', 'intro_night': 'شب معارفه',
+        'night': 'شب', 'day': 'روز', 'handshake': 'دست‌دادن', 'finished': 'پایان',
+    }
+    lines = [
+        f'🎭 اتاق مافیا #{room_id}',
+        f'وضعیت: {labels.get(status, status)}',
+        f'بازیکنان ({len(players)}):',
+    ]
+    for i, p in enumerate(players, 1):
+        mark = '✅' if p.get('alive', True) else '💀'
+        lines.append(f'{i}. {mark} {p.get("display_name") or p.get("telegram_id")}')
+    if status == 'lobby':
+        lines.append('\nدکمه‌ها: پیوستن · شروع · وضعیت · قوانین · لغو')
+    return '\n'.join(lines)
+
+
 from core.database import db, upsert_user
 from games.mafia import service
 from config import NIGHT_SECONDS, DAY_SECONDS, ADMIN_IDS
@@ -150,7 +173,9 @@ async def join_callback(call: CallbackQuery):
         await call.answer('ثبت‌نام شدی!')
         try: await user.send_message(f'ثبت‌نامت در اتاق مافیای شمارهٔ {room_id} انجام شد. وقتی بازی شروع شود، نقش در همین خصوصی ارسال می‌شود.')
         except Exception: pass
-        if call.message: await call.message.reply(f'✅ {user.full_name} ثبت‌نام شد. تعداد: {count}')
+        if call.message:
+            text = await format_mafia_lobby(room_id)
+            await panel_update(call, text, reply_markup=room_keyboard(room_id))
     except ValueError as e: await call.answer(str(e),show_alert=True)
 
 
@@ -173,13 +198,13 @@ async def start_callback(call: CallbackQuery):
             await service.cancel_room(room_id, call.from_user.id, is_admin=True)
             await call.answer('ارسال نقش ناموفق؛ اتاق لغو شد', show_alert=True)
             if call.message:
-                await call.message.answer(
+                await panel_update(call, 
                     '⚠️ نقش خصوصی به همه نرسید. همه باید اول در خصوصی ربات «شروع» بزنند.'
                 )
             return
         await call.answer('شروع شد!')
         if call.message:
-            await call.message.answer(
+            await panel_update(call, 
                 '☀️ روز معارفه شروع شد؛ ۳۰ ثانیه فرصت گفت‌وگو. سپس شب معارفه خودکار آغاز می‌شود.'
             )
             await arm_timer(call.bot, room_id, chat_id, 'intro_day')
@@ -196,26 +221,18 @@ async def status_callback(call: CallbackQuery):
     if not room:
         await call.answer('اتاق پیدا نشد', show_alert=True)
         return
-    players = await service.room_players(room_id)
-    labels = {
-        'lobby': 'ثبت‌نام', 'intro_day': 'روز معارفه', 'intro_night': 'شب معارفه',
-        'night': 'شب', 'day': 'روز', 'handshake': 'دست‌دادن', 'finished': 'پایان',
-    }
-    lines = [
-        f'🎭 اتاق #{room_id} — {labels.get(room["status"], room["status"])}',
-        f'بازیکنان: {len(players)}',
-    ]
-    lines += [f'{"🟢" if p["alive"] else "⚫"} {p["display_name"]}' for p in players]
     await call.answer()
+    text = await format_mafia_lobby(room_id)
+    kb = room_keyboard(room_id) if room.get('status') == 'lobby' else None
     if call.message:
-        await call.message.answer('\n'.join(lines), reply_markup=room_keyboard(room_id))
+        await panel_update(call, text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith('ma:rules:'))
 async def rules_callback(call: CallbackQuery):
     await call.answer()
     if call.message:
-        await call.message.answer(
+        await panel_update(call, 
             '📜 قوانین مافیا\n'
             '• نقش‌ها: مافیا، پزشک، کارآگاه، شهروند\n'
             '• شب: اقدام نقش‌دارها · روز: بحث و رأی\n'
@@ -231,7 +248,7 @@ async def cancel_callback(call: CallbackQuery):
         await service.cancel_room(room_id, call.from_user.id)
         await call.answer('لغو شد')
         if call.message:
-            await call.message.answer(f'❌ اتاق {room_id} لغو شد.')
+            await panel_update(call, f'❌ اتاق {room_id} لغو شد.')
     except ValueError as e:
         await call.answer(str(e)[:180], show_alert=True)
 

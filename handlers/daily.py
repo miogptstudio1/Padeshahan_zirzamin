@@ -4,6 +4,7 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from games.daily import service as daily_service
 
@@ -60,6 +61,6 @@ async def daily_cb(call):
             await call.answer("چیزی نیست", show_alert=True)
             return
         await call.answer(f"+{r['reward']}")
-        await call.message.answer(f"+{r['reward']} سکه · موجودی {r['balance']}")
+        await panel_update(call, f"+{r['reward']} سکه · موجودی {r['balance']}")
     else:
         await call.answer("نامعتبر", show_alert=True)

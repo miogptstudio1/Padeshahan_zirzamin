@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from handlers.panel_ui import panel_update
 router = Router()
 
 
@@ -14,7 +15,8 @@ async def menu_callback(call: CallbackQuery):
         'shop': 'فروشگاه: خرید · تجهیز · موجودی · صندوق\nبزن: فروشگاه',
         'market': 'بازار بازیکن‌ها\nبزن: بازار',
         'crime': 'حمله · جیب‌بری · باج · قاچاق · هیل\nبزن: خلاف',
-        'boss': 'باس جهانی\nبزن: باس یا باس بزن',
+        'boss': 'باس جهانی یا تو گروه: باس گروه\nبزن: باس / باس بزن',
+        'pulse': 'ایونت ساعتی جهان\nبزن: وضعیت جهان',
         'spy': 'جاسوسی با ریپلای یا آیدی\nبزن: جاسوسی',
         'missions': 'مأموریت روزانه\nبزن: مأموریت',
         'family': 'خاندان\nساخت خاندان اسم | تگ',
@@ -26,4 +28,4 @@ async def menu_callback(call: CallbackQuery):
     }
     await call.answer()
     if call.message:
-        await call.message.answer(texts.get(key, 'از منو انتخاب کن.'))
+        await panel_update(call, texts.get(key, 'از منو انتخاب کن.'))

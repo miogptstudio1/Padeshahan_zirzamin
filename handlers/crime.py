@@ -195,3 +195,55 @@ async def cmd_crime_help(message: Message):
         "هر بازیکن از اول یک <b>پناهگاه کوچک</b> داره.",
         parse_mode="HTML",
     )
+
+
+@router.message(Command("arson", "آتش", "اتیش"))
+@router.message(F.text.in_({"آتش", "اتیش", "آتش‌سوزی", "arson"}))
+async def cmd_arson(message: Message):
+    try:
+        r = await crime_service.arson(message.from_user.id)
+        await message.answer(("✅ " if r["success"] else "❌ ") + r["detail"] + f"\n💰 {r['balance']}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+
+@router.message(Command("raid", "یورش", "غارت"))
+@router.message(F.text.in_({"یورش", "غارت انبار", "raid", "غارت"}))
+async def cmd_raid(message: Message):
+    try:
+        r = await crime_service.warehouse_raid(message.from_user.id)
+        await message.answer(("✅ " if r["success"] else "❌ ") + r["detail"] + f"\n💰 {r['balance']}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+
+@router.message(Command("street", "دعوا", "درگیری"))
+@router.message(F.text.in_({"دعوا", "درگیری", "دعوای خیابانی", "street"}))
+async def cmd_street(message: Message):
+    try:
+        r = await crime_service.street_fight(message.from_user.id)
+        await message.answer(("✅ " if r["success"] else "❌ ") + r["detail"] + f"\n💰 {r.get('balance', 0)}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+
+@router.message(Command("blackmail", "باج‌نامه", "باجنامه"))
+@router.message(F.text.regexp(r"^(?:باج‌نامه|باجنامه|/blackmail)\b"))
+async def cmd_blackmail(message: Message):
+    tid = None
+    if message.reply_to_message and message.reply_to_message.from_user:
+        tid = message.reply_to_message.from_user.id
+    else:
+        import re
+        m = re.search(r"\d{5,15}", message.text or "")
+        if m:
+            tid = int(m.group())
+    if not tid:
+        await message.answer("ریپلای کن یا بنویس: باج‌نامه 123456")
+        return
+    try:
+        r = await crime_service.blackmail(message.from_user.id, tid)
+        await message.answer(("✅ " if r["success"] else "❌ ") + r["detail"] + f"\n💰 {r['balance']}")
+    except ValueError as e:
+        await message.answer(str(e))
+

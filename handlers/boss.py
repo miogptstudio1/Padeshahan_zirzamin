@@ -4,6 +4,7 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from games.boss import service as boss_service
 
@@ -40,6 +41,21 @@ async def cmd_boss(message: Message):
 @router.message(Command("boss_hit", "باس_بزن"))
 @router.message(F.text.in_({"باس بزن", "ضربه باس", "حمله باس"}))
 async def cmd_boss_hit(message: Message):
+    # تو گروه → باس گروهی؛ خصوصی → باس جهانی
+    if message.chat.type in {"group", "supergroup"}:
+        from games.world_pulse import service as pulse_service
+        try:
+            r = await pulse_service.attack_group_boss(message.chat.id, message.from_user.id)
+            msg = (
+                f"زدی به {r['boss_name']}: −{r['damage']:,}\n"
+                f"جان باس: {r['boss_hp']:,}/{r['boss_max']:,}"
+            )
+            if r["defeated"]:
+                msg += "\n\nباس گروه افتاد. جوایز واریز شد."
+            await message.answer(msg)
+        except ValueError as e:
+            await message.answer(str(e))
+        return
     try:
         r = await boss_service.attack_boss(message.from_user.id)
         msg = (
@@ -48,7 +64,7 @@ async def cmd_boss_hit(message: Message):
             f"مجموع آسیب تو: {r['my_damage']:,}"
         )
         if r.get("player_hp"):
-            msg += f"\n❤️ جانت پر شد: {r['player_hp']['hp']}/{r['player_hp']['max_hp']}"
+            msg += f"\n❤️ جان: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
         if r["defeated"]:
             msg += "\n\nباس افتاد. جوایز برای نفرات برتر واریز شد."
         await message.answer(msg, reply_markup=boss_kb(message.from_user.id))
@@ -77,15 +93,15 @@ async def boss_cb(call):
             await call.answer(f"−{r['damage']}")
             msg = f"ضربه {r['damage']:,} · جان باس {r['boss_hp']:,}/{r['boss_max']:,}"
             if r.get("player_hp"):
-                msg += f"\n❤️ جانت پر شد: {r['player_hp']['hp']}/{r['player_hp']['max_hp']}"
+                msg += f"\n❤️ جان: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
             if r["defeated"]:
                 msg += "\nباس شکست."
-            await call.message.answer(msg, reply_markup=boss_kb(owner))
+            await panel_update(call, msg, reply_markup=boss_kb(owner))
         elif action == "status":
             await call.answer()
             st = await boss_service.boss_status(owner)
             b = st["boss"]
-            await call.message.answer(
+            await panel_update(call, 
                 f"{b['name']}: {int(b['hp']):,}/{int(b['max_hp']):,}",
                 reply_markup=boss_kb(owner),
             )

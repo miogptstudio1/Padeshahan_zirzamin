@@ -3,6 +3,24 @@ from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram import F
 import asyncio, time
+from handlers.panel_ui import panel_update
+
+async def format_coup_lobby(room_id: int) -> str:
+    room = await service.room(room_id)
+    rows = await service.players(room_id)
+    status = (room or {}).get('status', 'lobby')
+    lines = [
+        f'🃏 اتاق کودتا #{room_id}',
+        f'وضعیت: {status}',
+        f'بازیکنان ({len(rows)}/6):',
+    ]
+    for i, p in enumerate(rows, 1):
+        lines.append(f'{i}. {p.get("display_name") or p.get("telegram_id")}')
+    if status == 'lobby':
+        lines.append('\nدکمه‌ها: پیوستن · شروع · وضعیت')
+    return '\n'.join(lines)
+
+
 from core.database import upsert_user
 from games.coup import service
 from games.coup.engine import ROLE_FA, ACTION_FA, current_player, living_ids
@@ -377,10 +395,8 @@ async def coup_lobby_buttons(call: CallbackQuery):
             count = await service.join_room(room_id, call.from_user.id, call.from_user.full_name or str(call.from_user.id))
             await call.answer('پیوستی!')
             if call.message:
-                await call.message.answer(
-                    f'✅ {call.from_user.full_name} پیوست. تعداد: {count}',
-                    reply_markup=lobby_keyboard(room_id),
-                )
+                text = await format_coup_lobby(room_id)
+                await panel_update(call, text, reply_markup=lobby_keyboard(room_id))
         except ValueError as e:
             await call.answer(str(e)[:180], show_alert=True)
         except Exception as e:
@@ -407,7 +423,7 @@ async def coup_lobby_buttons(call: CallbackQuery):
                 await call.answer('شروع شد!')
             if call.message:
                 cur = current_player(state)
-                await call.message.answer(
+                await panel_update(call, 
                     '🃏 بازی شروع شد! با دکمه‌های شیشه‌ای بازی کن.',
                     reply_markup=action_keyboard(room_id),
                 )
@@ -419,11 +435,9 @@ async def coup_lobby_buttons(call: CallbackQuery):
         room = await service.room(room_id)
         await call.answer()
         if call.message:
-            st = room.get('status') if room else '?'
-            await call.message.answer(
-                f'🃏 اتاق کودتا {room_id} — وضعیت: {st}',
-                reply_markup=lobby_keyboard(room_id),
-            )
+            text = await format_coup_lobby(room_id)
+            kb = lobby_keyboard(room_id) if (room or {}).get('status') == 'lobby' else None
+            await panel_update(call, text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith('coup:'))
@@ -446,13 +460,13 @@ async def coup_buttons(call: CallbackQuery):
             if action in {'steal', 'assassinate', 'coup'}:
                 rows = await service.players(room_id)
                 buttons = [[InlineKeyboardButton(text=p['display_name'], callback_data=f'coup:target:{room_id}:{action}:{p["telegram_id"]}')] for p in rows if str(p['telegram_id']) != str(call.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-                await call.message.answer('هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
+                await panel_update(call, 'هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
             state, result = await service.mutate(room_id, call.from_user.id, action)
         elif parts[1] == 'targets':
             action = parts[3]
             rows = await service.players(room_id)
             buttons = [[InlineKeyboardButton(text=p['display_name'], callback_data=f'coup:target:{room_id}:{action}:{p["telegram_id"]}')] for p in rows if str(p['telegram_id']) != str(call.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-            await call.message.answer('هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
+            await panel_update(call, 'هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
         elif parts[1] == 'target':
             action, target = parts[3], int(parts[4])
             state, result = await service.mutate(room_id, call.from_user.id, action, target)
@@ -468,25 +482,31 @@ async def coup_buttons(call: CallbackQuery):
         await call.answer('انجام شد.')
         if result.get('pending'):
             text = '⏳ اقدام در انتظار پاسخ است. پنجرهٔ چالش ۲۰ ثانیه است.'
-            await call.message.answer(text, reply_markup=claim_keyboard(room_id, state.get('pending_claim') or {}))
+            await panel_update(call, text, reply_markup=claim_keyboard(room_id, state.get('pending_claim') or {}))
         else:
             if result.get('action') == 'challenge' and state.get('pending_loss'):
                 loser = int(state['pending_loss']['target'])
-                await call.message.answer(f'⚖️ نتیجهٔ چالش مشخص شد؛ بازیکن {loser} باید یک کارت نفوذ از دست بدهد و در خصوصی /coup_lose 1 یا /coup_lose 2 را بزند.')
+                await panel_update(call, f'⚖️ نتیجهٔ چالش مشخص شد؛ بازیکن {loser} باید یک کارت نفوذ از دست بدهد و در خصوصی /coup_lose 1 یا /coup_lose 2 را بزند.')
                 try: await call.bot.send_message(loser, '⚖️ چالش انجام شد. برای انتخاب کارت ازدست‌رفته /coup_lose 1 یا /coup_lose 2 را بزن.')
                 except Exception: pass
             elif result.get('needs_exchange_choice'):
-                await call.message.answer('تبادل شروع شد؛ کارت‌های پیشنهادی در خصوصی برایت ارسال می‌شوند.')
+                await panel_update(call, 'تبادل شروع شد؛ کارت‌های پیشنهادی در خصوصی برایت ارسال می‌شوند.')
                 try: await call.bot.send_message(call.from_user.id, 'کارت‌های پیشنهادی: ' + '، '.join(ROLE_FA[c] for c in result['offered']) + '\n/coup_exchange role1 role2')
                 except Exception: pass
             elif result.get('blocked'):
-                await call.message.answer('🛡️ مسدودسازی پذیرفته شد؛ اقدام اصلی اجرا نشد.')
+                await panel_update(call, '🛡️ مسدودسازی پذیرفته شد؛ اقدام اصلی اجرا نشد.')
             elif state.get('pending_loss') and result.get('action') in {'assassinate', 'coup'}:
                 target = int(state['pending_loss']['target'])
-                await call.message.answer('⚔️ هدف باید کارت ازدست‌رفته را در خصوصی انتخاب کند.')
+                await panel_update(call, '⚔️ هدف باید کارت ازدست‌رفته را در خصوصی انتخاب کند.')
                 try: await call.bot.send_message(target, 'برای انتخاب کارت ازدست‌رفته /coup_lose 1 یا /coup_lose 2 را بزن.')
                 except Exception: pass
             else:
-                await call.message.answer('✅ اقدام اجرا شد. برای وضعیت جدید /coup_status را بزن.')
+                try:
+                    players = await service.players(room_id)
+                    st2 = service.decode((await service.room(room_id))['state'])
+                    targets = [(str(p['telegram_id']), p['display_name']) for p in players if str(p['telegram_id']) != str(call.from_user.id) and st2.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
+                    await panel_update(call, '✅ اقدام اجرا شد. نوبت بعدی — از دکمه‌ها استفاده کن.', reply_markup=action_keyboard(room_id, targets))
+                except Exception:
+                    await panel_update(call, '✅ اقدام اجرا شد. برای ادامه /coup_menu را بزن.')
     except ValueError as exc:
         await call.answer(str(exc), show_alert=True)

@@ -42,6 +42,7 @@ def _build_dispatcher():
     from handlers.spy import router as spy_router
     from handlers.boss import router as boss_router
     from handlers.daily import router as daily_router
+    from handlers.pulse import router as pulse_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -58,6 +59,7 @@ def _build_dispatcher():
     dp.include_router(spy_router)
     dp.include_router(boss_router)
     dp.include_router(daily_router)
+    dp.include_router(pulse_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -68,6 +70,14 @@ def _build_dispatcher():
 async def _war_scheduler(bot: Bot):
     while True:
         try:
+            # ایونت ساعتی جهان
+            try:
+                from games.world_pulse import service as pulse_service
+                pulse = await pulse_service.maybe_spawn_hourly_pulse()
+                if pulse:
+                    logging.info("World pulse: %s", pulse.get("title"))
+            except Exception:
+                logging.exception("world pulse tick failed")
             results = await empire_service.resolve_expired_wars(limit=20)
             for result in results:
                 from games.empire.engine import war_result_message
@@ -632,6 +642,23 @@ from api.schemas import AllianceBuildingUpgradeRequest
 async def get_alliance_buildings(user: dict = Depends(current_user)):
     try: return await alliance_buildings_service.overview(int(user["id"]))
     except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/empire/alliance/buildings/fortress")
+async def upgrade_fortress_alias(user: dict = Depends(current_user)):
+    try:
+        result = await alliance_buildings_service.upgrade(int(user["id"]), "fortress")
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.post("/api/empire/alliance/buildings/academy")
+async def upgrade_academy_alias(user: dict = Depends(current_user)):
+    try:
+        result = await alliance_buildings_service.upgrade(int(user["id"]), "academy")
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.post("/api/empire/alliance/buildings/upgrade")
 async def upgrade_alliance_building(body: AllianceBuildingUpgradeRequest, user: dict = Depends(current_user)):

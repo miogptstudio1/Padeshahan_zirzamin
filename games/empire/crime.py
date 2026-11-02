@@ -12,11 +12,12 @@ from games.empire import army_advanced
 from games.events import service as event_service
 from games.daily import service as daily_service
 from games.reputation import service as rep_service
+from games.world_pulse import service as pulse_service
 
-ATTACK_COOLDOWN = 15 * 60  # 15 min
-CRIME_COOLDOWN = 5 * 60
-STARTER_COINS = 50
-STARTER_SOLDIERS = 3
+ATTACK_COOLDOWN = 25 * 60  # 25 min — سخت‌تر
+CRIME_COOLDOWN = 12 * 60  # 12 min
+STARTER_COINS = 20
+STARTER_SOLDIERS = 1
 
 
 def _hp_int(value, default: int = 100) -> int:
@@ -161,6 +162,11 @@ async def attack_player(attacker_id: int, defender_id: int) -> dict[str, Any]:
 
     atk_pow = await _power(attacker_id)
     def_pow = await _power(defender_id)
+    try:
+        atk_pow = max(1, int(atk_pow * await pulse_service.buff_multiplier("damage")))
+        def_pow = max(1, int(def_pow * await pulse_service.buff_multiplier("defense")))
+    except Exception:
+        pass
     # chance weighted by power
     ratio = atk_pow / (atk_pow + def_pow)
     roll = random.random()
@@ -480,11 +486,202 @@ async def hideout_status(user_id: int) -> dict[str, Any]:
     power = await _power(user_id)
     return {"hideout": h, "power": power}
 
-HEAL_COOLDOWN = 8 * 60  # 8 minutes
+HEAL_COOLDOWN = 20 * 60  # 20 minutes
 HEAL_AMOUNT = 35
 
 
+async def damage_hp(user_id: int, amount: int) -> dict:
+    """کاهش جان بازیکن (باس / خطر)."""
+    user_id = int(user_id)
+    amount = max(1, int(amount))
+    await ensure_hideout(user_id)
+    async with db().acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT hp, max_hp FROM player_hideouts WHERE telegram_id=$1 FOR UPDATE",
+            user_id,
+        )
+        cur = _hp_int(row["hp"] if row else None)
+        max_hp = _hp_int(row["max_hp"] if row else None)
+        new_hp = max(0, cur - amount)
+        await conn.execute(
+            "UPDATE player_hideouts SET hp=$2 WHERE telegram_id=$1",
+            user_id,
+            new_hp,
+        )
+    return {"hp": new_hp, "max_hp": max_hp, "lost": cur - new_hp}
+
+
+
+
+async def arson(actor_id: int) -> dict:
+    """آتش‌زدن انبار — ریسک بالا، پاداش متوسط."""
+    actor_id = int(actor_id)
+    await ensure_hideout(actor_id)
+    await _crime_cooldown(actor_id)
+    success = random.random() < 0.45
+    async with db().acquire() as conn:
+        async with conn.transaction():
+            coins = await conn.fetchval(
+                "SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE", actor_id
+            )
+            if coins is None:
+                raise ValueError("اول شروع را بزن.")
+            if success:
+                gain = random.randint(40, 180)
+                await conn.execute(
+                    "UPDATE users SET coins = coins + $2 WHERE telegram_id=$1", actor_id, gain
+                )
+                detail = f"انبار سوخت؛ +{gain} سکه"
+                amount = gain
+            else:
+                loss = random.randint(20, 90)
+                loss = min(loss, int(coins))
+                await conn.execute(
+                    "UPDATE users SET coins = coins - $2 WHERE telegram_id=$1", actor_id, loss
+                )
+                detail = f"گیر افتادی؛ −{loss} سکه"
+                amount = -loss
+                try:
+                    await damage_hp(actor_id, random.randint(5, 18))
+                except Exception:
+                    pass
+            await conn.execute(
+                "UPDATE player_hideouts SET last_crime_at=NOW() WHERE telegram_id=$1", actor_id
+            )
+            await conn.execute(
+                """INSERT INTO crime_logs(actor_id, target_id, kind, amount, success, detail)
+                   VALUES($1,NULL,'arson',$2,$3,$4)""",
+                actor_id, amount, success, detail,
+            )
+            bal = await conn.fetchval("SELECT coins FROM users WHERE telegram_id=$1", actor_id)
+    return {"success": success, "amount": amount, "detail": detail, "balance": int(bal)}
+
+
+async def blackmail(actor_id: int, target_id: int) -> dict:
+    """باج‌نامه — نیاز به قدرت بالاتر."""
+    actor_id, target_id = int(actor_id), int(target_id)
+    if actor_id == target_id:
+        raise ValueError("خودت را نمی‌شود باج‌نامه کرد.")
+    await ensure_hideout(actor_id)
+    await _crime_cooldown(actor_id)
+    atk = await _power(actor_id)
+    dfn = await _power(target_id)
+    if atk <= dfn:
+        raise ValueError("قدرتت برای باج‌نامه کافی نیست.")
+    success = random.random() < min(0.7, 0.35 + (atk - dfn) / 200)
+    async with db().acquire() as conn:
+        async with conn.transaction():
+            tcoins = await conn.fetchval(
+                "SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE", target_id
+            )
+            if tcoins is None:
+                raise ValueError("هدف پیدا نشد.")
+            await conn.fetchval(
+                "SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE", actor_id
+            )
+            if success:
+                take = max(5, min(400, int(tcoins * random.uniform(0.03, 0.10))))
+                await conn.execute(
+                    "UPDATE users SET coins = coins - $2 WHERE telegram_id=$1", target_id, take
+                )
+                await conn.execute(
+                    "UPDATE users SET coins = coins + $2 WHERE telegram_id=$1", actor_id, take
+                )
+                detail = f"باج‌نامه جواب داد؛ +{take}"
+                amount = take
+            else:
+                fine = random.randint(15, 60)
+                await conn.execute(
+                    "UPDATE users SET coins = GREATEST(0, coins - $2) WHERE telegram_id=$1",
+                    actor_id, fine,
+                )
+                detail = f"لو رفتی؛ −{fine}"
+                amount = -fine
+            await conn.execute(
+                "UPDATE player_hideouts SET last_crime_at=NOW() WHERE telegram_id=$1", actor_id
+            )
+            await conn.execute(
+                """INSERT INTO crime_logs(actor_id, target_id, kind, amount, success, detail)
+                   VALUES($1,$2,'blackmail',$3,$4,$5)""",
+                actor_id, target_id, amount, success, detail,
+            )
+            bal = await conn.fetchval("SELECT coins FROM users WHERE telegram_id=$1", actor_id)
+    return {"success": success, "amount": amount, "detail": detail, "balance": int(bal)}
+
+
+async def warehouse_raid(actor_id: int) -> dict:
+    """یورش به انبار — پاداش بالا، شانس کم."""
+    actor_id = int(actor_id)
+    await ensure_hideout(actor_id)
+    await _crime_cooldown(actor_id)
+    success = random.random() < 0.32
+    async with db().acquire() as conn:
+        async with conn.transaction():
+            coins = int(await conn.fetchval(
+                "SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE", actor_id
+            ) or 0)
+            if success:
+                gain = random.randint(120, 450)
+                await conn.execute(
+                    "UPDATE users SET coins = coins + $2 WHERE telegram_id=$1", actor_id, gain
+                )
+                amount, detail = gain, f"یورش موفق؛ +{gain}"
+            else:
+                loss = min(coins, random.randint(50, 200))
+                await conn.execute(
+                    "UPDATE users SET coins = coins - $2 WHERE telegram_id=$1", actor_id, loss
+                )
+                amount, detail = -loss, f"نگهبان‌ها رسیدن؛ −{loss}"
+                try:
+                    await damage_hp(actor_id, random.randint(12, 30))
+                except Exception:
+                    pass
+            await conn.execute(
+                "UPDATE player_hideouts SET last_crime_at=NOW() WHERE telegram_id=$1", actor_id
+            )
+            await conn.execute(
+                """INSERT INTO crime_logs(actor_id, target_id, kind, amount, success, detail)
+                   VALUES($1,NULL,'raid',$2,$3,$4)""",
+                actor_id, amount, success, detail,
+            )
+            bal = await conn.fetchval("SELECT coins FROM users WHERE telegram_id=$1", actor_id)
+    return {"success": success, "amount": amount, "detail": detail, "balance": int(bal)}
+
+
+async def street_fight(actor_id: int) -> dict:
+    """دعوای خیابانی — کمی سکه یا زخم."""
+    actor_id = int(actor_id)
+    await ensure_hideout(actor_id)
+    await _crime_cooldown(actor_id)
+    success = random.random() < 0.55
+    async with db().acquire() as conn:
+        async with conn.transaction():
+            if success:
+                gain = random.randint(15, 70)
+                await conn.execute(
+                    "UPDATE users SET coins = coins + $2 WHERE telegram_id=$1", actor_id, gain
+                )
+                amount, detail = gain, f"برد خیابانی؛ +{gain}"
+            else:
+                amount, detail = 0, "کتک خوردی"
+                try:
+                    await damage_hp(actor_id, random.randint(8, 22))
+                except Exception:
+                    pass
+            await conn.execute(
+                "UPDATE player_hideouts SET last_crime_at=NOW() WHERE telegram_id=$1", actor_id
+            )
+            await conn.execute(
+                """INSERT INTO crime_logs(actor_id, target_id, kind, amount, success, detail)
+                   VALUES($1,NULL,'street',$2,$3,$4)""",
+                actor_id, amount, success, detail,
+            )
+            bal = await conn.fetchval("SELECT coins FROM users WHERE telegram_id=$1", actor_id)
+    return {"success": success, "amount": amount, "detail": detail, "balance": int(bal or 0)}
+
+
 async def restore_full_hp(user_id: int) -> dict:
+
     """پر کردن کامل جان (مثلاً بعد ضربه به باس)."""
     user_id = int(user_id)
     await ensure_hideout(user_id)

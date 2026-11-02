@@ -4,6 +4,7 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from core import staff as staff_service
 from core.database import db
@@ -99,17 +100,17 @@ async def admin_callbacks(call: CallbackQuery):
             f"⭐ ابرادمین (env): <b>{len(ADMIN_IDS)}</b>"
         )
         if call.message:
-            await call.message.answer(text, parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
+            await panel_update(call, text, parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "staff":
         try:
             rows = await staff_service.list_staff()
         except ValueError as e:
-            await call.message.answer(str(e))
+            await panel_update(call, str(e))
             return
         if not rows:
-            await call.message.answer("هنوز پرسنلی ثبت نشده.")
+            await panel_update(call, "هنوز پرسنلی ثبت نشده.")
             return
         lines = ["👥 <b>لیست پرسنل</b>\n"]
         for r in rows[:40]:
@@ -118,17 +119,17 @@ async def admin_callbacks(call: CallbackQuery):
                 f"• <b>{r.get('role_label') or r['role']}</b> — {r.get('display_name') or '—'} "
                 f"({uname}) <code>{r['telegram_id']}</code>"
             )
-        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
+        await panel_update(call, "\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "audit":
         try:
             rows = await staff_service.recent_audit(call.from_user.id, 15)
         except ValueError as e:
-            await call.message.answer(str(e))
+            await panel_update(call, str(e))
             return
         if not rows:
-            await call.message.answer("لاگی نیست.")
+            await panel_update(call, "لاگی نیست.")
             return
         lines = ["📜 <b>لاگ اخیر</b>\n"]
         for r in rows:
@@ -137,11 +138,11 @@ async def admin_callbacks(call: CallbackQuery):
                 f"#{r['id']} <code>{r['action']}</code> توسط {r['actor_name'] or r['actor_id']}\n"
                 f"   هدف: <code>{tgt}</code> — {r['detail'] or '—'}"
             )
-        await call.message.answer("\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
+        await panel_update(call, "\n".join(lines), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
     if action == "help":
-        await call.message.answer(_admin_help_text(), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
+        await panel_update(call, _admin_help_text(), parse_mode="HTML", reply_markup=admin_menu_kb(call.from_user.id))
         return
 
 

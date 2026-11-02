@@ -25,7 +25,7 @@ ITEMS = {
     "shadow_armor": {"name": "زره سایه", "kind": "armor", "price": 1500, "attack": 0, "defense": 25, "rarity": "حماسی"},
     "royal_armor": {"name": "زره سلطنتی", "kind": "armor", "price": 3500, "attack": 0, "defense": 45, "rarity": "افسانه‌ای"},
 }
-BOX_PRICE = 250
+BOX_PRICE = 600
 
 
 def item_stats(weapon_key: str | None, armor_key: str | None) -> dict[str, int]:

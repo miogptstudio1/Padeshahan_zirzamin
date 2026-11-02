@@ -4,6 +4,7 @@ from __future__ import annotations
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 
 from games.empire import army_advanced as army_svc
 from games.empire.army_rules import UNITS, COMMANDERS, UNIT_ALIASES, COMMANDER_ALIASES
@@ -127,7 +128,7 @@ async def army_cb(call):
         if action == "status":
             await call.answer()
             p = await army_svc.total_army_power(owner)
-            await call.message.answer(
+            await panel_update(call, 
                 f"⚔️ قدرت کل: <b>{p['total']}</b>\n"
                 f"سرباز {p['soldiers']} · واحد {p['unit_power']} · فرمانده {p['commander_power']}",
                 parse_mode="HTML",
@@ -135,15 +136,15 @@ async def army_cb(call):
             )
         elif action == "catalog":
             await call.answer()
-            await call.message.answer(army_svc.catalog_text(), parse_mode="HTML", reply_markup=army_keyboard(owner))
+            await panel_update(call, army_svc.catalog_text(), parse_mode="HTML", reply_markup=army_keyboard(owner))
         elif action == "hireunit" and extra:
             r = await army_svc.recruit_unit(owner, extra, 1)
             await call.answer("استخدام شد")
-            await call.message.answer(f"✅ {r['unit']} (−{r['cost']}) · 💰 {r['balance']}", reply_markup=army_keyboard(owner))
+            await panel_update(call, f"✅ {r['unit']} (−{r['cost']}) · 💰 {r['balance']}", reply_markup=army_keyboard(owner))
         elif action == "hirecmd" and extra:
             r = await army_svc.hire_commander(owner, extra)
             await call.answer("فرمانده آمد")
-            await call.message.answer(
+            await panel_update(call, 
                 f"⭐ {r['commander']} (+{r['bonus']}) (−{r['cost']})",
                 reply_markup=army_keyboard(owner),
             )

@@ -1,9 +1,9 @@
 """Pure rules for the Empire economy and territory system."""
 from __future__ import annotations
 
-DAILY_REWARD = 100
-WORK_REWARD = 25
-WORK_COOLDOWN_SECONDS = 60 * 60
+DAILY_REWARD = 40
+WORK_REWARD = 10
+WORK_COOLDOWN_SECONDS = 90 * 60
 DAILY_COOLDOWN_SECONDS = 24 * 60 * 60
 MAX_ASSET_LEVEL = 5
 ASSETS = {
@@ -46,7 +46,18 @@ CITIES = {
     "under_forum": {"name": "میدان زیر", "price": 1200, "tax": 70, "description": "مرکز · تجمع و سیاست"},
     "black_vault": {"name": "خزانه سیاه", "price": 6000, "tax": 320, "description": "مرکز · ثروت سنگین"},
     "echo_tunnels": {"name": "تونل پژواک", "price": 1700, "tax": 100, "description": "زیر · مسیر مخفی"},
+    "ghost_market": {"name": "بازار ارواح", "price": 2800, "tax": 155, "description": "شرق · معامله با مردگان"},
+    "blood_docks": {"name": "اسکله خون", "price": 3500, "tax": 190, "description": "غرب · بندر ممنوعه"},
+    "obsidian_keep": {"name": "دژ ابسیدین", "price": 7500, "tax": 380, "description": "شمال · سنگر سیاه"},
+    "copper_pits": {"name": "گودال مس", "price": 1100, "tax": 60, "description": "جنوب · معدن ارزان"},
+    "smoke_alley": {"name": "کوچه دود", "price": 800, "tax": 42, "description": "مرکز · قاچاق سبک"},
+    "ivory_tower": {"name": "برج عاج", "price": 9200, "tax": 480, "description": "مرکز · نماد اشرافیت"},
+    "rat_nest": {"name": "لانه موش‌ها", "price": 450, "tax": 25, "description": "زیر · پناهگاه خلاف‌کاران"},
+    "crimson_hall": {"name": "سالن زرشکی", "price": 4800, "tax": 250, "description": "شرق · قمارخانه بزرگ"},
+    "salt_mines": {"name": "معادن نمک", "price": 1600, "tax": 85, "description": "جنوب · کار اجباری"},
+    "moon_pier": {"name": "اسکله ماه", "price": 2400, "tax": 130, "description": "غرب · تجارت شبانه"},
 }
+
 STARTER_OUTPOSTS = {
     f"outpost_{i}": {
         "name": f"پناهگاه مرزی {i}",
@@ -83,7 +94,7 @@ def defense_upgrade_cost(city_key: str, current_level: int) -> int:
         raise ValueError("قلمرو نامعتبر است.")
     if current_level < 0 or current_level >= MAX_DEFENSE_LEVEL:
         raise ValueError("دفاع این قلمرو به حداکثر سطح رسیده است.")
-    return CITIES[city_key]["price"] * (current_level + 1) // 2
+    return max(80, int(CITIES[city_key]["price"] or 200) * (current_level + 1) // 2)
 
 
 def city_tax(city_key: str, defense_level: int = 0) -> int:
@@ -94,7 +105,7 @@ def city_tax(city_key: str, defense_level: int = 0) -> int:
 
 # Territory warfare (v0.15)
 WAR_PREPARATION_SECONDS = 10 * 60
-WAR_FEE_RATE = 0.10
+WAR_FEE_RATE = 0.18
 WAR_ATTACK_BASE = 50
 WAR_DEFENSE_BASE = 50
 WAR_ATTACK_CITY_DEFENSE_BONUS = 20
@@ -103,9 +114,10 @@ WAR_CITY_COUNT_BONUS = 15
 WAR_RANDOM_MAX = 30
 
 def war_fee(target_city_price: int) -> int:
-    if target_city_price <= 0:
-        raise ValueError("قیمت قلمرو نامعتبر است.")
-    return max(1, int(target_city_price * WAR_FEE_RATE))
+    # قلمرو رایگان (outpost) هم حداقل هزینه جنگ دارد
+    price = max(0, int(target_city_price))
+    fee = int(price * WAR_FEE_RATE)
+    return max(150, fee)  # حداقل ۱۵۰ سکه
 
 def attack_power(owned_city_count: int, attack_city_defense: int, roll: int) -> int:
     if owned_city_count < 1 or attack_city_defense < 0 or roll < 0 or roll > WAR_RANDOM_MAX:
@@ -136,9 +148,9 @@ def war_result_message(result: dict) -> str:
 
 
 # Army system (v0.17)
-SOLDIER_RECRUIT_COST = 20
-MAX_SOLDIERS = 500
-SOLDIER_POWER = 3
+SOLDIER_RECRUIT_COST = 55
+MAX_SOLDIERS = 300
+SOLDIER_POWER = 2
 
 def recruit_cost(count: int) -> int:
     if not isinstance(count, int) or count < 1 or count > 100:

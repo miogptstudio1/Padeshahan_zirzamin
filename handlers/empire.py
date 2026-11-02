@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from handlers.panel_ui import panel_update
 from games.empire import service
 from games.events import service as event_service
 from games.daily import service as daily_service
@@ -293,9 +294,9 @@ async def empire_menu_buttons(call: CallbackQuery):
     try:
         if action == 'shop':
             from handlers.shop import catalog_keyboard, _format_catalog
-            await call.message.answer(_format_catalog(), parse_mode='HTML', reply_markup=catalog_keyboard(uid))
+            await panel_update(call, _format_catalog(), parse_mode='HTML', reply_markup=catalog_keyboard(uid))
         elif action == 'crime':
-            await call.message.answer(
+            await panel_update(call, 
                 '🕶️ خلاف: حمله · جیب‌بری · باج · قاچاق · پناهگاه',
                 reply_markup=kb,
             )
@@ -309,7 +310,7 @@ async def empire_menu_buttons(call: CallbackQuery):
                     pass
             except Exception:
                 pass
-            await call.message.answer(f'🎁 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
+            await panel_update(call, f'🎁 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
         elif action == 'work':
             reward, balance = await service.work(uid)
             try:
@@ -320,13 +321,13 @@ async def empire_menu_buttons(call: CallbackQuery):
                     pass
             except Exception:
                 pass
-            await call.message.answer(f'🧰 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
+            await panel_update(call, f'🧰 +{reward} سکه. موجودی: {balance}', reply_markup=kb)
         elif action == 'assets':
             rows = await service.assets_for(uid)
             lines = ['🏭 دارایی‌های تو:'] if rows else ['هنوز دارایی نداری. از دکمه‌های خرید استفاده کن.']
             for row in rows:
                 lines.append(f"• {ASSETS[row['asset_key']]['name']} سطح {row['level']} — {hourly_income(row['asset_key'], int(row['level']))} سکه/ساعت")
-            await call.message.answer('\n'.join(lines), reply_markup=kb)
+            await panel_update(call, '\n'.join(lines), reply_markup=kb)
         elif action == 'collectmenu':
             rows = [
                 [InlineKeyboardButton(text='💵 کارگاه', callback_data=f'empire:{uid}:collect:workshop'),
@@ -334,30 +335,30 @@ async def empire_menu_buttons(call: CallbackQuery):
                 [InlineKeyboardButton(text='💵 کارخانه', callback_data=f'empire:{uid}:collect:factory')],
                 [InlineKeyboardButton(text='◀️ بازگشت', callback_data=f'empire:{uid}:assets')],
             ]
-            await call.message.answer('کدام درآمد را جمع کنیم؟', reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+            await panel_update(call, 'کدام درآمد را جمع کنیم؟', reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
         elif action == 'collect' and extra in ASSETS:
             name, amount, balance = await service.collect_income(uid, extra)
-            await call.message.answer(f'💵 {name}: +{amount}\n💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'💵 {name}: +{amount}\n💰 {balance}', reply_markup=kb)
         elif action == 'buy' and extra in ASSETS:
             name, level, cost, balance = await service.buy_or_upgrade(uid, extra)
-            await call.message.answer(
+            await panel_update(call, 
                 f'🏗️ {name} سطح {level}\nهزینه {cost} · موجودی {balance}',
                 reply_markup=kb,
             )
         elif action == 'army':
             army = await service.army_for(uid)
             sol = int(army.get('soldiers') or 0)
-            await call.message.answer(
+            await panel_update(call, 
                 f'⚔️ ارتش: {sol} سرباز\nقدرت: +{army_power_bonus(sol)}\nهزینه هر سرباز: {SOLDIER_RECRUIT_COST}',
                 reply_markup=kb,
             )
         elif action == 'recruit5':
             total, cost, balance = await service.recruit_soldiers(uid, 5)
-            await call.message.answer(f'🪖 سربازان: {total} (−{cost}) · 💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'🪖 سربازان: {total} (−{cost}) · 💰 {balance}', reply_markup=kb)
         elif action == 'top':
             rows = await service.leaderboard(10)
             lines = ['🏆 رتبه‌بندی ثروت'] + [f"{i}. {r['display_name'] or r['telegram_id']} — {r['coins']} سکه" for i, r in enumerate(rows, 1)]
-            await call.message.answer('\n'.join(lines), reply_markup=kb)
+            await panel_update(call, '\n'.join(lines), reply_markup=kb)
         elif action == 'cities':
             rows = await service.cities_list()
             lines = ['🗺️ قلمروها:']
@@ -370,14 +371,14 @@ async def empire_menu_buttons(call: CallbackQuery):
                         callback_data=f"empire:{uid}:citybuy:{row['city_key']}",
                     )])
             city_btns.append([InlineKeyboardButton(text='◀️ منو', callback_data=f'empire:{uid}:assets')])
-            await call.message.answer('\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=city_btns) if city_btns else kb)
+            await panel_update(call, '\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=city_btns) if city_btns else kb)
         elif action == 'citybuy' and extra:
             name, cost, balance = await service.city_buy(uid, extra)
-            await call.message.answer(f'✅ {name} خریداری شد (−{cost}) · 💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'✅ {name} خریداری شد (−{cost}) · 💰 {balance}', reply_markup=kb)
         elif action == 'mycities':
             rows = await service.my_cities(uid)
             if not rows:
-                await call.message.answer('هنوز قلمرویی نداری.', reply_markup=kb)
+                await panel_update(call, 'هنوز قلمرویی نداری.', reply_markup=kb)
                 return
             lines = ['👑 قلمروهای تو:']
             btns = []
@@ -388,19 +389,19 @@ async def empire_menu_buttons(call: CallbackQuery):
                     InlineKeyboardButton(text=f"🛡️ دفاع", callback_data=f"empire:{uid}:defend:{row['city_key']}"),
                 ])
             btns.append([InlineKeyboardButton(text='◀️ منو', callback_data=f'empire:{uid}:army')])
-            await call.message.answer('\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
+            await panel_update(call, '\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=btns))
         elif action == 'tax' and extra:
             name, amount, balance = await service.collect_tax(uid, extra)
-            await call.message.answer(f'💵 مالیات {name}: +{amount} · 💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'💵 مالیات {name}: +{amount} · 💰 {balance}', reply_markup=kb)
         elif action == 'defend' and extra:
             name, level, cost, balance = await service.upgrade_city_defense(uid, extra)
-            await call.message.answer(f'🛡️ دفاع {name} → سطح {level} (−{cost}) · 💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'🛡️ دفاع {name} → سطح {level} (−{cost}) · 💰 {balance}', reply_markup=kb)
         else:
-            await call.message.answer('اقدام پشتیبانی نشده.', reply_markup=kb)
+            await panel_update(call, 'اقدام پشتیبانی نشده.', reply_markup=kb)
     except ValueError as exc:
-        await call.message.answer(str(exc), reply_markup=kb)
+        await panel_update(call, str(exc), reply_markup=kb)
     except Exception as exc:
-        await call.message.answer(f'خطا: {exc}', reply_markup=kb)
+        await panel_update(call, f'خطا: {exc}', reply_markup=kb)
 
 
 @router.message(Command('empire_war'))

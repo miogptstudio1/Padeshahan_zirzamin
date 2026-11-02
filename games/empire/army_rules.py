@@ -5,31 +5,31 @@ from __future__ import annotations
 UNITS = {
     "infantry": {
         "name": "پیاده‌نظام",
-        "cost": 25,
+        "cost": 60,
         "power": 4,
         "desc": "نیروی پایهٔ ارتش",
     },
     "archer": {
         "name": "کماندار",
-        "cost": 40,
+        "cost": 95,
         "power": 6,
         "desc": "قدرت حمله از فاصله",
     },
     "cavalry": {
         "name": "سواره‌نظام",
-        "cost": 70,
+        "cost": 160,
         "power": 10,
         "desc": "ضربهٔ سریع و متحرک",
     },
     "siege": {
         "name": "مهندس محاصره",
-        "cost": 120,
+        "cost": 280,
         "power": 16,
         "desc": "برای شکستن دفاع قلمرو",
     },
     "shadow": {
         "name": "سایه‌بان",
-        "cost": 90,
+        "cost": 210,
         "power": 12,
         "desc": "نیروی ویژهٔ زیرزمین",
     },
@@ -39,25 +39,25 @@ UNITS = {
 COMMANDERS = {
     "reza": {
         "name": "رضا تبرزن",
-        "cost": 800,
+        "cost": 2200,
         "bonus_power": 25,
         "desc": "+۲۵ قدرت ارتش",
     },
     "neda": {
         "name": "ندا کمان‌کش",
-        "cost": 1200,
+        "cost": 2800,
         "bonus_power": 40,
         "desc": "+۴۰ قدرت ارتش",
     },
     "kaveh": {
         "name": "کاوه سپر‌دار",
-        "cost": 1500,
+        "cost": 4200,
         "bonus_power": 35,
         "desc": "+۳۵ قدرت · مناسب دفاع",
     },
     "shahin": {
         "name": "شاهین سایه",
-        "cost": 2500,
+        "cost": 6000,
         "bonus_power": 60,
         "desc": "+۶۰ قدرت · افسانه‌ای",
     },
