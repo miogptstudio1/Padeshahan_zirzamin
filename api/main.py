@@ -43,6 +43,7 @@ def _build_dispatcher():
     from handlers.boss import router as boss_router
     from handlers.daily import router as daily_router
     from handlers.pulse import router as pulse_router
+    from handlers.gender import router as gender_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -60,6 +61,7 @@ def _build_dispatcher():
     dp.include_router(boss_router)
     dp.include_router(daily_router)
     dp.include_router(pulse_router)
+    dp.include_router(gender_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -338,7 +340,7 @@ async def health():
 async def me(user: dict = Depends(current_user)):
     user_id = int(user["id"])
     async with db().acquire() as conn:
-        row = await conn.fetchrow("SELECT telegram_id,display_name,coins,games_played,wins FROM users WHERE telegram_id=$1", user_id)
+        row = await conn.fetchrow("SELECT telegram_id,display_name,coins,games_played,wins,gender FROM users WHERE telegram_id=$1", user_id)
     if not row:
         # current_user already upserts; rare race — return safe defaults
         name = " ".join(x for x in (user.get("first_name", ""), user.get("last_name", "")) if x).strip() or str(user_id)
@@ -361,6 +363,7 @@ async def me(user: dict = Depends(current_user)):
         "telegram_id": user_id,
         "name": row["display_name"],
         "display_name": row["display_name"],
+        "gender": row.get("gender") if hasattr(row, "get") else row["gender"],
         "coins": int(row["coins"]),
         "games_played": int(row["games_played"]),
         "wins": int(row["wins"]),

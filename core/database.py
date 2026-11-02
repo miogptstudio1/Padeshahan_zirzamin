@@ -6,12 +6,14 @@ pool: asyncpg.Pool | None = None
 SCHEMA = [
 """CREATE TABLE IF NOT EXISTS users (
  telegram_id BIGINT PRIMARY KEY, username TEXT, display_name TEXT NOT NULL DEFAULT '',
+ gender TEXT,
  coins BIGINT NOT NULL DEFAULT 0, daily_claimed_at TIMESTAMPTZ, work_claimed_at TIMESTAMPTZ,
  games_played INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0, xp BIGINT NOT NULL DEFAULT 0 CHECK(xp >= 0),
  is_banned BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )""",
 """ALTER TABLE users ADD COLUMN IF NOT EXISTS work_claimed_at TIMESTAMPTZ""",
-"""ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0 CHECK(xp >= 0)""",
+"""ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0 CHECK(xp >= 0)"""
+,"""ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT""",
 """CREATE TABLE IF NOT EXISTS empire_mission_claims (
  telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
  mission_key TEXT NOT NULL, period_key TEXT NOT NULL, claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -423,6 +425,7 @@ async def connect_db():
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS max_hp INTEGER NOT NULL DEFAULT 100",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS last_heal_at TIMESTAMPTZ",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS died_at TIMESTAMPTZ",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT",
             # دیتابیس قدیمی: price > 0 — outpost با قیمت ۰ باید مجاز باشد
             "ALTER TABLE empire_cities DROP CONSTRAINT IF EXISTS empire_cities_price_check",
             "ALTER TABLE empire_cities ADD CONSTRAINT empire_cities_price_check CHECK (price >= 0)",

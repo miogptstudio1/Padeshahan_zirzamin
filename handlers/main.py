@@ -1,3 +1,4 @@
+from games.profile import service as profile_service
 from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -83,6 +84,12 @@ async def start(message: Message):
         reply_markup=kb,
         parse_mode="HTML",
     )
+    try:
+        if await profile_service.needs_gender(message.from_user.id):
+            from handlers.gender import prompt_gender
+            await prompt_gender(message)
+    except Exception:
+        pass
 
 
 @router.message(Command('profile', 'پروفایل'))
@@ -96,6 +103,10 @@ async def profile(message: Message):
     if row.get("is_banned"):
         await message.answer("🚫 حساب شما مسدود است.")
         return
+    try:
+        g_label = await profile_service.gender_label(message.from_user.id)
+    except Exception:
+        g_label = "—"
     try:
         rep = await rep_service.get(message.from_user.id)
         rep_score, rep_label = rep["score"], rep["label"]
@@ -114,7 +125,7 @@ async def profile(message: Message):
     if row["games_played"]:
         win_rate = round(100 * row["wins"] / row["games_played"], 1)
     await message.answer(
-        f"👤 <b>پروفایل تو</b>\n\n"
+        f"👤 <b>پروفایل تو</b>\nجنسیت: {g_label}\n\n"
         f"🏷️ نام: {row['display_name']}\n"
         f"🪙 سکه: <b>{row['coins']:,}</b>\n"
         f"🎮 بازی‌ها: {row['games_played']}\n"
@@ -196,10 +207,25 @@ async def check_required_membership(call: CallbackQuery):
                 "عضویت اوکیه، بزن بریم",
                 reply_markup=kb,
             )
+    try:
+        if await profile_service.needs_gender(call.from_user.id):
+            from handlers.gender import prompt_gender
+            # پیام جدید برای انتخاب
+            await call.message.answer(
+                "جنسیت کاراکترت رو انتخاب کن:\n(بعداً با «جنسیت» عوض می‌کنی)",
+                reply_markup=__import__('handlers.gender', fromlist=['gender_keyboard']).gender_keyboard(call.from_user.id),
+            )
+    except Exception:
+        pass
 
 
 @router.callback_query(F.data == "menu:profile")
 async def menu_profile(call: CallbackQuery):
+    try:
+        g_label = await profile_service.gender_label(call.from_user.id)
+    except Exception:
+        g_label = "—"
+
     await call.answer()
     async with db().acquire() as conn:
         row = await conn.fetchrow('SELECT * FROM users WHERE telegram_id=$1', call.from_user.id)
@@ -222,7 +248,7 @@ async def menu_profile(call: CallbackQuery):
         army_pow = 0
     win_rate = round(100 * row["wins"] / row["games_played"], 1) if row["games_played"] else 0
     await call.message.answer(
-        f"👤 <b>پروفایل تو</b>\n\n"
+        f"👤 <b>پروفایل تو</b>\nجنسیت: {g_label}\n\n"
         f"🏷️ نام: {row['display_name']}\n"
         f"🪙 سکه: <b>{row['coins']:,}</b>\n"
         f"🎮 بازی‌ها: {row['games_played']}\n"
