@@ -244,8 +244,19 @@ body{
       <h2 style="margin-top:12px">🛒 فروشگاه</h2>
       <div id="equipmentShop" class="muted">—</div>
       <div class="grid2" style="margin-top:10px">
-        <button class="btn gold" id="openEquipmentBox">🎁 صندوق (۲۵۰)</button>
+        <button class="btn gold" id="openEquipmentBox">🎁 صندوق (۶۰۰)</button>
         <button class="btn" id="refreshEquipment">↻ تازه‌سازی</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>🏋️ زورخانه</h2>
+      <p class="muted">قدرت · سرعت · سلامتی · استقامت — مستقیم روی نبرد</p>
+      <div id="gymStats" class="muted">—</div>
+      <div class="grid2" style="margin-top:8px">
+        <button class="btn primary" data-train="strength">💪 قدرت</button>
+        <button class="btn primary" data-train="speed">⚡ سرعت</button>
+        <button class="btn primary" data-train="vitality">❤️ سلامتی</button>
+        <button class="btn primary" data-train="stamina">🛡️ استقامت</button>
       </div>
     </div>
   </section>
@@ -745,9 +756,13 @@ body{
       if (!inv.length) invEl.innerHTML='<p class="muted">خالی</p>';
       else {
         invEl.innerHTML = inv.map(it=>`<div class="list-row"><div><b>${it.equipped?'⚔️ ':''}${esc(it.name||it.key)}</b>
-          <div class="muted">حمله +${fa(it.attack||0)} · دفاع +${fa(it.defense||0)}</div></div>
-          <button class="btn" style="padding:6px 10px" ${it.equipped?'disabled':''} data-equip="${esc(it.id||it.key)}">${it.equipped?'مجهز':'تجهیز'}</button></div>`).join('');
+          <div class="muted">+${fa(it.upgrade_level||0)} · حمله +${fa(it.attack||0)} · دفاع +${fa(it.defense||0)}</div></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn" style="padding:6px 10px" ${it.equipped?'disabled':''} data-equip="${esc(it.key||it.id)}">${it.equipped?'مجهز':'تجهیز'}</button>
+            <button class="btn gold" style="padding:6px 10px" data-upgrade="${esc(it.key||it.id)}">⬆️</button>
+          </div></div>`).join('');
         invEl.querySelectorAll('[data-equip]').forEach(b=>b.addEventListener('click',()=>act('/api/empire/equipment/equip','POST',{item_key:b.dataset.equip,item_id:b.dataset.equip},'تجهیز…')));
+        invEl.querySelectorAll('[data-upgrade]').forEach(b=>b.addEventListener('click',()=>act('/api/empire/equipment/upgrade','POST',{item_key:b.dataset.upgrade},'ارتقا…').then(()=>loadEquipment())));
       }
       const shop = data.shop||[];
       const shopEl = document.getElementById('equipmentShop');
@@ -947,6 +962,21 @@ body{
     const rid = 'box_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);
     act('/api/empire/equipment/box','POST',{request_id:rid},'صندوق…');
   });
+  async function loadGym(){
+    try {
+      const data = await api('/api/gym');
+      const b = data.bonus || {};
+      const s = data.stats || {};
+      const el = document.getElementById('gymStats');
+      if (el) el.innerHTML = `💪 قدرت ${fa(s.strength||0)} · ⚡ سرعت ${fa(s.speed||0)}<br>❤️ سلامتی ${fa(s.vitality||0)} · 🛡️ استقامت ${fa(s.stamina||0)}<br>بونوس حمله +${fa(b.attack||0)} · دفاع +${fa(b.defense||0)} · قدرت +${fa(b.power||0)}`;
+    } catch(e){
+      const el = document.getElementById('gymStats');
+      if (el && e.message!=='membership_gate') el.textContent = e.message;
+    }
+  }
+  document.querySelectorAll('[data-train]').forEach(b=>{
+    b.addEventListener('click',()=>act('/api/gym/train','POST',{stat:b.dataset.train},'تمرین…').then(()=>loadGym()));
+  });
   document.getElementById('refreshEquipment').addEventListener('click',()=>loadEquipment());
   document.getElementById('searchAlliances').addEventListener('click', async ()=>{
     try {
@@ -1072,6 +1102,8 @@ body{
 
   const _oldSwitch = switchTab;
   switchTab = function(name){
+    if(name==='army'){ try{ loadEquipment(); loadGym(); }catch(e){} }
+
     _oldSwitch(name);
     if (name==='admin') loadStaffPanel();
   };

@@ -20,6 +20,7 @@ from handlers.daily import router as daily_router
 from handlers.pulse import router as pulse_router
 from handlers.gender import router as gender_router
 from handlers.alliance import router as alliance_router
+from handlers.gym import router as gym_router
 from games.empire import service as empire_service
 from games.empire.engine import war_result_message
 from membership import RequiredMembershipMiddleware
@@ -30,7 +31,20 @@ async def empire_war_scheduler(bot):
   try:
    try:
     from games.world_pulse import service as pulse_service
-    await pulse_service.maybe_spawn_hourly_pulse()
+    pulse = await pulse_service.maybe_spawn_hourly_pulse()
+    if pulse:
+     text = await pulse_service.pulse_announce_text(pulse)
+     for cid in await pulse_service.list_event_chats():
+      try:
+       await bot.send_message(cid, text)
+      except Exception:
+       pass
+    for item in await pulse_service.maybe_spawn_group_bosses():
+     b = item['boss']
+     try:
+      await bot.send_message(item['chat_id'], f"👹 باس گروه ظاهر شد: {b.get('name')}\n❤️ {int(b.get('hp') or 0):,}/{int(b.get('max_hp') or 0):,}\nبزن: باس بزن")
+     except Exception:
+      pass
    except Exception:
     logging.exception('world pulse tick failed')
    results = await empire_service.resolve_expired_wars(limit=20)
@@ -75,6 +89,7 @@ async def main():
  dp.include_router(pulse_router)
  dp.include_router(gender_router)
  dp.include_router(alliance_router)
+ dp.include_router(gym_router)
  dp.include_router(callbacks_router)
  dp.include_router(mafia_router)
  dp.include_router(coup_router)
