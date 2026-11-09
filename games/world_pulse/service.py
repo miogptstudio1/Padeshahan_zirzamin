@@ -117,6 +117,14 @@ async def _ensure_tables(conn) -> None:
         """CREATE INDEX IF NOT EXISTS group_bosses_chat_active
            ON group_bosses(chat_id) WHERE status='active'"""
     )
+    await conn.execute(
+        """CREATE TABLE IF NOT EXISTS broadcast_chats (
+            chat_id BIGINT PRIMARY KEY,
+            title TEXT,
+            last_seen TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            events_enabled BOOLEAN NOT NULL DEFAULT TRUE
+        )"""
+    )
 
 
 async def active_buffs() -> list[dict[str, Any]]:
@@ -371,3 +379,76 @@ async def attack_group_boss(chat_id: int, user_id: int) -> dict[str, Any]:
 from games.empire import army_advanced  # noqa: E402
 from games.empire import crime as crime_service  # noqa: E402
 from games.events import service as event_service  # noqa: E402
+
+
+
+async def register_chat(chat_id: int, title: str | None = None) -> None:
+    """گروه‌هایی که ربات توشون فعاله برای اعلان ایونت/باس."""
+    if int(chat_id) >= 0:
+        return
+    async with db().acquire() as conn:
+        await _ensure_tables(conn)
+        await conn.execute(
+            """INSERT INTO broadcast_chats(chat_id, title, last_seen, events_enabled)
+               VALUES($1,$2,NOW(),TRUE)
+               ON CONFLICT(chat_id) DO UPDATE SET
+                 last_seen=NOW(),
+                 title=COALESCE(EXCLUDED.title, broadcast_chats.title)""",
+            int(chat_id),
+            title,
+        )
+
+
+async def list_event_chats() -> list[int]:
+    async with db().acquire() as conn:
+        await _ensure_tables(conn)
+        rows = await conn.fetch(
+            """SELECT chat_id FROM broadcast_chats
+               WHERE events_enabled=TRUE
+               ORDER BY last_seen DESC LIMIT 80"""
+        )
+    return [int(r["chat_id"]) for r in rows]
+
+
+async def pulse_announce_text(pulse: dict) -> str:
+    mins = ""
+    try:
+        ends = pulse.get("ends_at")
+        if ends:
+            if getattr(ends, "tzinfo", None) is None:
+                ends = ends.replace(tzinfo=timezone.utc)
+            left = max(1, int((ends - datetime.now(timezone.utc)).total_seconds() // 60))
+            mins = f"\n⏱ حدود {left} دقیقه"
+    except Exception:
+        pass
+    return (
+        f"🌍 ایونت جهان: {pulse.get('title') or 'شلوغی شهر'}\n"
+        f"{pulse.get('message') or ''}"
+        f"{mins}\n"
+        f"برای وضعیت بنویس: وضعیت جهان"
+    )
+
+
+async def maybe_spawn_group_bosses() -> list[dict]:
+    """هر از گاهی تو گروه‌های فعال یک باس گروه بیار."""
+    chats = await list_event_chats()
+    if not chats:
+        return []
+    spawned = []
+    random.shuffle(chats)
+    for chat_id in chats[:2]:
+        if random.random() > 0.35:
+            continue
+        async with db().acquire() as conn:
+            await _ensure_tables(conn)
+            live = await conn.fetchval(
+                """SELECT 1 FROM group_bosses
+                   WHERE chat_id=$1 AND status='active' AND hp>0
+                     AND (ends_at IS NULL OR ends_at>NOW())""",
+                chat_id,
+            )
+            if live:
+                continue
+        boss = await ensure_group_boss(chat_id, force_new=True)
+        spawned.append({"chat_id": chat_id, "boss": boss})
+    return spawned

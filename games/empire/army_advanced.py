@@ -6,6 +6,7 @@ from core.database import db
 from games.empire.army_rules import UNITS, COMMANDERS, UNIT_ALIASES, COMMANDER_ALIASES, unit_power
 from games.empire import service as empire_service
 from games.empire.engine import army_power_bonus
+from games.gym import service as gym_service
 
 
 async def units_for(user_id: int) -> list[dict[str, Any]]:
@@ -55,6 +56,11 @@ async def total_army_power(user_id: int) -> dict[str, Any]:
     units = await units_for(user_id)
     unit_p = sum(u["power"] for u in units)
     cmds = await commanders_for(user_id)
+    gym_p = 0
+    try:
+        gym_p = int((await gym_service.combat_bonus(user_id)).get("power") or 0)
+    except Exception:
+        gym_p = 0
     cmd_p = sum(c["bonus"] for c in cmds)
     return {
         "soldiers": soldiers,
@@ -63,7 +69,8 @@ async def total_army_power(user_id: int) -> dict[str, Any]:
         "unit_power": unit_p,
         "commanders": cmds,
         "commander_power": cmd_p,
-        "total": base + unit_p + cmd_p,
+        "total": base + unit_p + cmd_p + gym_p,
+        "gym_power": gym_p,
     }
 
 

@@ -152,27 +152,60 @@ async def empire_top(message: Message):
 
 
 @router.message(Command('empire_cities', 'قلمروها', 'نقشه'))
-@router.message(F.text.in_({'قلمروها', 'نقشه', 'نقشه قلمرو'}))
+@router.message(F.text.in_({'قلمروها', 'نقشه', 'نقشه قلمرو', 'قلمرو ها', 'لیست قلمرو'}))
 async def empire_cities(message: Message):
-    rows = await service.cities_list()
-    lines = ['🗺️ نقشهٔ قلمروها (مالیات هر ۶ ساعت):']
+    try:
+        rows = await service.cities_list()
+    except Exception as exc:
+        await message.answer(f'لیست قلمرو نیومد: {exc}')
+        return
+    if not rows:
+        await message.answer('هنوز قلمروی تو دیتابیس نیست. یه بار ربات رو ری‌استارت کن.')
+        return
+    header = '🗺️ نقشهٔ قلمروها (مالیات هر ۶ ساعت):'
+    free = [r for r in rows if r['owner_id'] is None]
+    owned = [r for r in rows if r['owner_id'] is not None]
+    lines = [header, f'آزاد: {len(free)} · تصرف‌شده: {len(owned)}', '']
     for row in rows:
         owner = row['owner_name'] or ('آزاد' if row['owner_id'] is None else str(row['owner_id']))
-        lines.append(f"• {row['name']} [{row['city_key']}] — قیمت {row['price']}، مالیات {row['tax_income']}، دفاع {row['defense_level']}/{MAX_DEFENSE_LEVEL} — مالک: {owner}")
-    lines.append('\nخرید: /empire_city_buy market')
-    await message.answer('\n'.join(lines))
+        lines.append(
+            f"• {row['name']} [{row['city_key']}] — "
+            f"قیمت {row['price']}، مالیات {row['tax_income']}، "
+            f"دفاع {row['defense_level']}/{MAX_DEFENSE_LEVEL} — {owner}"
+        )
+    lines.append('')
+    lines.append('خرید: خرید قلمرو market')
+    lines.append('یا از دکمهٔ قلمروها تو منوی امپراتوری')
+    # تلگرام سقف ۴۰۹۶ کاراکتر دارد
+    chunk, size = [], 0
+    for line in lines:
+        add = len(line) + 1
+        if chunk and size + add > 3500:
+            await message.answer('\n'.join(chunk))
+            chunk, size = [], 0
+        chunk.append(line)
+        size += add
+    if chunk:
+        await message.answer('\n'.join(chunk))
 
 
-@router.message(Command('empire_city_buy'))
+@router.message(Command('empire_city_buy', 'خرید_قلمرو'))
+@router.message(F.text.regexp(r'^(?:خرید قلمرو)\s+\S+'))
 async def empire_city_buy(message: Message):
-    args = (message.text or '').split(maxsplit=1)
-    if len(args) != 2 or args[1].strip().lower() not in CITY_ALIASES:
-        await message.answer('فرمت: /empire_city_buy market|port|citadel|industrial|capital')
+    text = (message.text or '').strip()
+    for pref in ('/empire_city_buy', 'خرید_قلمرو', 'خرید قلمرو'):
+        if text.startswith(pref):
+            text = text[len(pref):].strip()
+            break
+    raw = (text.split()[0] if text else '').strip().lower()
+    from games.empire.engine import CITIES
+    key = CITY_ALIASES.get(raw, raw)
+    if key not in CITIES:
+        await message.answer('فرمت: خرید قلمرو market\nاز «قلمروها» کلید قلمرو را بردار.')
         return
-    key = CITY_ALIASES[args[1].strip().lower()]
     try:
         name, cost, balance = await service.city_buy(message.from_user.id, key)
-        await message.answer(f'👑 قلمرو «{name}» تصرف شد!\nهزینه: {cost} سکه\n💰 موجودی: {balance}\nبرای دریافت مالیات: /empire_tax {key}')
+        await message.answer(f'👑 قلمرو «{name}» تصرف شد!\nهزینه: {cost} سکه\n💰 موجودی: {balance}')
     except ValueError as exc:
         await message.answer(str(exc))
 
@@ -361,15 +394,24 @@ async def empire_menu_buttons(call: CallbackQuery):
             await panel_update(call, '\n'.join(lines), reply_markup=kb)
         elif action == 'cities':
             rows = await service.cities_list()
-            lines = ['🗺️ قلمروها:']
+            free = [r for r in rows if r['owner_id'] is None]
+            owned = [r for r in rows if r['owner_id'] is not None]
+            lines = [
+                '🗺️ قلمروها',
+                f'آزاد: {len(free)} · تصرف‌شده: {len(owned)}',
+                '',
+                'آزادها (نمونه):',
+            ]
             city_btns = []
-            for row in rows:
-                lines.append(f"• {row['name']} [{row['city_key']}] — {row['price']}🪙 · مالک: {row['owner_name'] or 'آزاد'}")
-                if row['owner_id'] is None:
-                    city_btns.append([InlineKeyboardButton(
-                        text=f"🛒 خرید {row['name']}",
-                        callback_data=f"empire:{uid}:citybuy:{row['city_key']}",
-                    )])
+            for row in free[:12]:
+                lines.append(f"• {row['name']} [{row['city_key']}] — {row['price']}🪙")
+                city_btns.append([InlineKeyboardButton(
+                    text=f"🛒 {row['name'][:18]}",
+                    callback_data=f"empire:{uid}:citybuy:{row['city_key']}",
+                )])
+            if len(free) > 12:
+                lines.append(f'… و {len(free)-12} قلمرو آزاد دیگر')
+                lines.append('برای لیست کامل بنویس: قلمروها')
             city_btns.append([InlineKeyboardButton(text='◀️ منو', callback_data=f'empire:{uid}:assets')])
             await panel_update(call, '\n'.join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=city_btns) if city_btns else kb)
         elif action == 'citybuy' and extra:

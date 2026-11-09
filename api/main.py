@@ -45,6 +45,7 @@ def _build_dispatcher():
     from handlers.pulse import router as pulse_router
     from handlers.gender import router as gender_router
     from handlers.alliance import router as alliance_router
+    from handlers.gym import router as gym_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -64,6 +65,7 @@ def _build_dispatcher():
     dp.include_router(pulse_router)
     dp.include_router(gender_router)
     dp.include_router(alliance_router)
+    dp.include_router(gym_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -80,6 +82,30 @@ async def _war_scheduler(bot: Bot):
                 pulse = await pulse_service.maybe_spawn_hourly_pulse()
                 if pulse:
                     logging.info("World pulse: %s", pulse.get("title"))
+                    try:
+                        text = await pulse_service.pulse_announce_text(pulse)
+                        for cid in await pulse_service.list_event_chats():
+                            try:
+                                await bot.send_message(cid, text)
+                            except Exception:
+                                pass
+                    except Exception:
+                        logging.exception("pulse announce failed")
+                try:
+                    spawned = await pulse_service.maybe_spawn_group_bosses()
+                    for item in spawned:
+                        b = item["boss"]
+                        msg = (
+                            f"👹 باس گروه ظاهر شد: {b.get('name')}\n"
+                            f"❤️ {int(b.get('hp') or 0):,} / {int(b.get('max_hp') or 0):,}\n"
+                            f"بزن: باس بزن"
+                        )
+                        try:
+                            await bot.send_message(item["chat_id"], msg)
+                        except Exception:
+                            pass
+                except Exception:
+                    logging.exception("group boss spawn failed")
             except Exception:
                 logging.exception("world pulse tick failed")
             results = await empire_service.resolve_expired_wars(limit=20)
@@ -680,6 +706,33 @@ async def activate_alliance_shield(user: dict = Depends(current_user)):
         await alliance_notification_service.notify_user_alliance(app.state.bot, int(user["id"]), "buildings", "سپر دفاعی فعال شد", "سپر دفاعی اتحاد برای ۶ ساعت فعال شد.", exclude_actor=True)
         return result
     except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+
+# Gym + equipment upgrade
+from games.gym import service as gym_service
+
+@app.get("/api/gym")
+async def api_gym_status(user: dict = Depends(current_user)):
+    s = await gym_service.ensure_stats(int(user["id"]))
+    b = await gym_service.combat_bonus(int(user["id"]))
+    return {"stats": s, "bonus": b, "text": await gym_service.status_text(int(user["id"]))}
+
+@app.post("/api/gym/train")
+async def api_gym_train(body: dict, user: dict = Depends(current_user)):
+    stat = (body or {}).get("stat") or (body or {}).get("skill")
+    try:
+        return await gym_service.train(int(user["id"]), str(stat or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.post("/api/empire/equipment/upgrade")
+async def api_equipment_upgrade(body: dict, user: dict = Depends(current_user)):
+    key = (body or {}).get("item_key") or (body or {}).get("item_id")
+    try:
+        return await equipment_service.upgrade_item(int(user["id"]), str(key or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.get("/", include_in_schema=False)
 async def web_app():

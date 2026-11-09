@@ -426,6 +426,15 @@ async def connect_db():
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS last_heal_at TIMESTAMPTZ",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS died_at TIMESTAMPTZ",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT",
+            "ALTER TABLE empire_equipment_inventory ADD COLUMN IF NOT EXISTS upgrade_level INTEGER NOT NULL DEFAULT 0",
+            """CREATE TABLE IF NOT EXISTS player_gym_stats (
+            telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
+            strength INTEGER NOT NULL DEFAULT 0,
+            speed INTEGER NOT NULL DEFAULT 0,
+            vitality INTEGER NOT NULL DEFAULT 0,
+            stamina INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )""",
             # دیتابیس قدیمی: price > 0 — outpost با قیمت ۰ باید مجاز باشد
             "ALTER TABLE empire_cities DROP CONSTRAINT IF EXISTS empire_cities_price_check",
             "ALTER TABLE empire_cities ADD CONSTRAINT empire_cities_price_check CHECK (price >= 0)",

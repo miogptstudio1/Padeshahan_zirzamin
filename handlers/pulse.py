@@ -14,6 +14,11 @@ router = Router()
 @router.message(Command("pulse", "ایونت_جهان", "وضعیت_جهان"))
 @router.message(F.text.in_({"ایونت جهان", "وضعیت جهان", "باف", "pulse", "جهان"}))
 async def cmd_pulse(message: Message):
+    if message.chat.type in {"group", "supergroup"}:
+        try:
+            await pulse_service.register_chat(message.chat.id, getattr(message.chat, "title", None))
+        except Exception:
+            pass
     await message.answer(await pulse_service.status_text())
 
 
@@ -23,6 +28,10 @@ async def cmd_group_boss(message: Message):
     if message.chat.type not in {"group", "supergroup"}:
         await message.answer("این دستور فقط تو گروه کار می‌کنه.\nتو گروه بنویس: باس گروه")
         return
+    try:
+        await pulse_service.register_chat(message.chat.id, getattr(message.chat, "title", None))
+    except Exception:
+        pass
     boss = await pulse_service.ensure_group_boss(message.chat.id, force_new=False)
     # اگر تقریبا مرده، یکی جدید
     if int(boss["hp"]) <= 0:

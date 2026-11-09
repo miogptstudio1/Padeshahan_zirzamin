@@ -51,33 +51,62 @@ def shop_keyboard(owner_id: int) -> InlineKeyboardMarkup:
     ])
 
 
-def inventory_keyboard(owner_id: int, inventory: list[dict]) -> InlineKeyboardMarkup:
+SHOP_PAGE_SIZE = 8
+
+
+def inventory_keyboard(owner_id: int, inventory: list[dict], page: int = 0) -> InlineKeyboardMarkup:
     uid = int(owner_id)
+    items = [r for r in inventory if (r.get("key") or r.get("item_key"))]
+    total = len(items)
+    pages = max(1, (total + SHOP_PAGE_SIZE - 1) // SHOP_PAGE_SIZE)
+    page = max(0, min(int(page), pages - 1))
+    start = page * SHOP_PAGE_SIZE
+    chunk = items[start:start + SHOP_PAGE_SIZE]
     rows = []
-    for row in inventory[:12]:
+    for row in chunk:
         key = row.get("key") or row.get("item_key")
-        if not key:
-            continue
         name = row.get("name") or ITEMS.get(key, {}).get("name", key)
         qty = row.get("quantity", 1)
+        lv = int(row.get("upgrade_level") or 0)
         rows.append([
             InlineKeyboardButton(
-                text=f"🔧 تجهیز {name} (×{qty})",
+                text=f"🔧 تجهیز {name} +{lv} (×{qty})",
                 callback_data=f"shop:{uid}:eq:{key}",
-            )
+            ),
+            InlineKeyboardButton(
+                text="⬆️",
+                callback_data=f"equp:{uid}:{key}",
+            ),
         ])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️ قبلی", callback_data=f"shop:{uid}:inv:{page-1}"))
+    if page < pages - 1:
+        nav.append(InlineKeyboardButton(text="بعدی ▶️", callback_data=f"shop:{uid}:inv:{page+1}"))
+    if nav:
+        rows.append(nav)
     rows.append([
-        InlineKeyboardButton(text="📋 فروشگاه", callback_data=f"shop:{uid}:list"),
-        InlineKeyboardButton(text=f"🎁 صندوق", callback_data=f"shop:{uid}:box"),
+        InlineKeyboardButton(text="📋 فروشگاه", callback_data=f"shop:{uid}:list:0"),
+        InlineKeyboardButton(text="🎁 صندوق", callback_data=f"shop:{uid}:box"),
     ])
-    rows.append([InlineKeyboardButton(text="🔄 تازه‌سازی موجودی", callback_data=f"shop:{uid}:inv")])
+    rows.append([InlineKeyboardButton(
+        text=f"🔄 موجودی ({page+1}/{pages})",
+        callback_data=f"shop:{uid}:inv:{page}",
+    )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def catalog_keyboard(owner_id: int) -> InlineKeyboardMarkup:
+def catalog_keyboard(owner_id: int, page: int = 0) -> InlineKeyboardMarkup:
     uid = int(owner_id)
+    keys = list(ITEMS.keys())
+    total = len(keys)
+    pages = max(1, (total + SHOP_PAGE_SIZE - 1) // SHOP_PAGE_SIZE)
+    page = max(0, min(int(page), pages - 1))
+    start = page * SHOP_PAGE_SIZE
+    chunk = keys[start:start + SHOP_PAGE_SIZE]
     rows = []
-    for key, meta in list(ITEMS.items())[:12]:
+    for key in chunk:
+        meta = ITEMS[key]
         price = meta.get("price", "?")
         name = meta.get("name", key)
         rows.append([
@@ -86,10 +115,21 @@ def catalog_keyboard(owner_id: int) -> InlineKeyboardMarkup:
                 callback_data=f"shop:{uid}:buy:{key}",
             )
         ])
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="◀️ قبلی", callback_data=f"shop:{uid}:list:{page-1}"))
+    if page < pages - 1:
+        nav.append(InlineKeyboardButton(text="بعدی ▶️", callback_data=f"shop:{uid}:list:{page+1}"))
+    if nav:
+        rows.append(nav)
     rows.append([
-        InlineKeyboardButton(text="🎒 موجودی", callback_data=f"shop:{uid}:inv"),
+        InlineKeyboardButton(text="🎒 موجودی", callback_data=f"shop:{uid}:inv:0"),
         InlineKeyboardButton(text=f"🎁 صندوق ({BOX_PRICE})", callback_data=f"shop:{uid}:box"),
     ])
+    rows.append([InlineKeyboardButton(
+        text=f"صفحه {page+1}/{pages}",
+        callback_data=f"shop:{uid}:list:{page}",
+    )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -154,7 +194,7 @@ async def shop_home(message: Message):
     await message.answer(
         "فروشگاه\n"
         "از دکمه‌ها بخر یا بنویس: خرید ... / تجهیز ... / موجودی",
-        reply_markup=catalog_keyboard(message.from_user.id),
+        reply_markup=catalog_keyboard(message.from_user.id, 0),
     )
 
 
@@ -271,23 +311,33 @@ async def shop_callbacks(call: CallbackQuery):
         if action == "home":
             await call.answer()
             await panel_update(call, 
-                "🛒 فروشگاه",
-                reply_markup=catalog_keyboard(call.from_user.id),
+                "🛒 فروشگاه — با بعدی بقیه کالاها رو ببین",
+                reply_markup=catalog_keyboard(call.from_user.id, 0),
             )
         elif action == "list":
             await call.answer()
+            page = 0
+            try:
+                page = int(extra) if extra != "" else 0
+            except ValueError:
+                page = 0
             await panel_update(call, 
-                _format_catalog(),
+                _format_catalog_page(page),
                 parse_mode="HTML",
-                reply_markup=catalog_keyboard(call.from_user.id),
+                reply_markup=catalog_keyboard(call.from_user.id, page),
             )
         elif action == "inv":
             await call.answer()
+            page = 0
+            try:
+                page = int(extra) if extra != "" else 0
+            except ValueError:
+                page = 0
             data = await equipment_service.dashboard(call.from_user.id)
             await panel_update(call, 
                 _format_inventory(data),
                 parse_mode="HTML",
-                reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or []),
+                reply_markup=inventory_keyboard(call.from_user.id, data.get("inventory") or [], page),
             )
         elif action == "buy" and extra:
             await call.answer("خرید…")

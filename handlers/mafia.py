@@ -158,6 +158,11 @@ async def send_night_prompts(bot, room_id: int):
 async def create(message: Message):
     if not message.chat or message.chat.type=='private':
         await message.answer('این دستور را داخل گروه بازی بفرست.'); return
+    try:
+        from games.world_pulse import service as _pulse
+        await _pulse.register_chat(message.chat.id, getattr(message.chat, "title", None))
+    except Exception:
+        pass
     await upsert_user(message.from_user.id,message.from_user.username,await name_of(message))
     try:
         room_id=await service.open_room(message.chat.id,message.from_user.id,await name_of(message))

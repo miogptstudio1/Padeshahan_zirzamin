@@ -13,6 +13,7 @@ from games.events import service as event_service
 from games.daily import service as daily_service
 from games.reputation import service as rep_service
 from games.world_pulse import service as pulse_service
+from games.gym import service as gym_service
 
 ATTACK_COOLDOWN = 25 * 60  # 25 min — سخت‌تر
 CRIME_COOLDOWN = 12 * 60  # 12 min
@@ -159,6 +160,11 @@ async def _power(user_id: int) -> int:
         pass
     hide = await ensure_hideout(user_id)
     base += int(hide.get("defense") or 0) + int(hide.get("level") or 1) * 2
+    try:
+        gb = await gym_service.combat_bonus(user_id)
+        base += int(gb.get("power") or 0)
+    except Exception:
+        pass
     return max(1, base)
 
 

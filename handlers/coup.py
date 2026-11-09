@@ -87,11 +87,11 @@ async def restore_coup_timers(bot) -> int:
 def claim_keyboard(room_id: int, claim: dict):
     buttons = []
     if claim.get('phase') in {'challenge', 'block_challenge'}:
-        buttons.append([InlineKeyboardButton(text='⚖️ چالش', callback_data=f'coup:challenge:{room_id}')])
+        buttons.append([InlineKeyboardButton(text='⚖️ چالش (می‌گی دروغ می‌گه)', callback_data=f'coup:challenge:{room_id}')])
     if claim.get('phase') == 'block_challenge':
-        buttons.append([InlineKeyboardButton(text='✅ قبول مسدودسازی', callback_data=f'coup:accept:{room_id}')])
+        buttons.append([InlineKeyboardButton(text='✅ قبول بلاک (اقدام نمی‌شه)', callback_data=f'coup:accept:{room_id}')])
     elif claim.get('phase') in {'challenge', 'block'}:
-        buttons.append([InlineKeyboardButton(text='✅ قبول اقدام', callback_data=f'coup:accept:{room_id}')])
+        buttons.append([InlineKeyboardButton(text='✅ قبول اقدام (بدون چالش)', callback_data=f'coup:accept:{room_id}')])
         roles = {'foreign_aid':['duke'], 'steal':['captain','ambassador'], 'assassinate':['contessa']}.get(claim.get('action'), [])
         for role in roles:
             buttons.append([InlineKeyboardButton(text=f'🛡️ مسدودسازی با {ROLE_FA[role]}', callback_data=f'coup:block:{room_id}:{role}')])
@@ -104,14 +104,50 @@ def lobby_keyboard(room_id: int):
          InlineKeyboardButton(text='📊 وضعیت', callback_data=f'coup:lobby:status:{room_id}')],
     ])
 
+ACTION_FA = {
+    "income": "درآمد (+۱ سکه)",
+    "foreign_aid": "کمک خارجی (+۲ سکه)",
+    "tax": "مالیات (+۳ · ادعای دوک)",
+    "steal": "سرقت (ادعای کاپیتان)",
+    "exchange": "تبادل کارت (ادعای سفیر)",
+    "assassinate": "ترور (ادعای آدم‌کش)",
+    "coup": "کودتا",
+    "challenge": "چالش نقش",
+    "block": "مسدودسازی",
+    "accept": "قبول اقدام",
+}
+
+
+async def _announce(bot, chat_id: int, text: str) -> None:
+    try:
+        await bot.send_message(chat_id, text)
+    except Exception:
+        pass
+
+
+COUP_ACTION_HINT = '🃏 نوبت اقدامت — فقط یکی را بزن، الکی چند تا نزن.\n\n🪙 درآمد: +۱ سکه (امن، بدون ادعا)\n💰 کمک خارجی: +۲ سکه (دوک می\u200cتونه بلاک کنه)\n👑 مالیات: +۳ سکه (ادعا می\u200cکنی دوک هستی)\n🔄 تبادل: کارت عوض کن (ادعا: سفیر)\n🎯 سرقت از بازیکن: تا ۲ سکه (ادعا: کاپیتان)\n⚔️ ترور: ۳ سکه + یک کارت از هدف (ادعا: آدم\u200cکش · کنتسا بلاک)\n💥 کودتا: ۷ سکه · بلاک نداره · یک کارت از هدف\n\nبعد از ادعا ۲۰ ثانیه وقت چالش/بلاک هست.'
+
 def action_keyboard(room_id: int, target_ids: list[tuple[str, str]] | None = None):
     rows = [
-        [InlineKeyboardButton(text='🪙 درآمد +۱', callback_data=f'coup:act:{room_id}:income'), InlineKeyboardButton(text='💰 کمک خارجی +۲', callback_data=f'coup:act:{room_id}:foreign_aid')],
-        [InlineKeyboardButton(text='👑 مالیات +۳', callback_data=f'coup:act:{room_id}:tax'), InlineKeyboardButton(text='🔄 تبادل کارت', callback_data=f'coup:act:{room_id}:exchange')],
+        [
+            InlineKeyboardButton(text='🪙 درآمد (+۱ · امن)', callback_data=f'coup:act:{room_id}:income'),
+            InlineKeyboardButton(text='💰 کمک خارجی (+۲)', callback_data=f'coup:act:{room_id}:foreign_aid'),
+        ],
+        [
+            InlineKeyboardButton(text='👑 مالیات (+۳ · دوک)', callback_data=f'coup:act:{room_id}:tax'),
+            InlineKeyboardButton(text='🔄 تبادل (سفیر)', callback_data=f'coup:act:{room_id}:exchange'),
+        ],
+        [
+            InlineKeyboardButton(text='🎯 سرقت از کی؟', callback_data=f'coup:targets:{room_id}:steal'),
+        ],
+        [
+            InlineKeyboardButton(text='⚔️ ترور (۳🪙 · آدم‌کش)', callback_data=f'coup:targets:{room_id}:assassinate'),
+            InlineKeyboardButton(text='💥 کودتا (۷🪙 · قطعی)', callback_data=f'coup:targets:{room_id}:coup'),
+        ],
+        [
+            InlineKeyboardButton(text='❓ این دکمه‌ها چی‌ان؟', callback_data=f'coup:help:{room_id}'),
+        ],
     ]
-    if target_ids:
-        rows += [[InlineKeyboardButton(text=f'🎯 {name}', callback_data=f'coup:target:{room_id}:steal:{pid}')] for pid, name in target_ids]
-    rows.append([InlineKeyboardButton(text='⚔️ انتخاب هدف ترور', callback_data=f'coup:targets:{room_id}:assassinate'), InlineKeyboardButton(text='💥 انتخاب هدف کودتا', callback_data=f'coup:targets:{room_id}:coup')])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 async def display_name(message: Message):
@@ -374,7 +410,7 @@ async def coup_menu(message: Message):
     state = service.decode(room['state'])
     players = await service.players(room['id'])
     targets = [(str(p['telegram_id']), p['display_name']) for p in players if str(p['telegram_id']) != str(message.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-    await message.answer('🃏 منوی تعاملی کودتا — اقدام فقط در نوبت خودت پذیرفته می‌شود.', reply_markup=action_keyboard(room['id'], targets))
+    await message.answer(COUP_ACTION_HINT, reply_markup=action_keyboard(room['id'], targets))
 
 
 @router.callback_query(F.data.startswith('coup:lobby:'))
@@ -423,10 +459,7 @@ async def coup_lobby_buttons(call: CallbackQuery):
                 await call.answer('شروع شد!')
             if call.message:
                 cur = current_player(state)
-                await panel_update(call, 
-                    '🃏 بازی شروع شد! با دکمه‌های شیشه‌ای بازی کن.',
-                    reply_markup=action_keyboard(room_id),
-                )
+                await panel_update(call, COUP_ACTION_HINT, reply_markup=action_keyboard(room_id))
         except ValueError as e:
             await call.answer(str(e)[:180], show_alert=True)
         except Exception as e:
@@ -447,6 +480,15 @@ async def coup_buttons(call: CallbackQuery):
     if not call.message or call.message.chat.type == 'private':
         await call.answer('این دکمه را در گروه بازی استفاده کن.', show_alert=True); return
     parts = call.data.split(':')
+    # coup:help:ROOM
+    if len(parts) >= 3 and parts[1] == 'help':
+        try:
+            rid = int(parts[2])
+        except ValueError:
+            await call.answer('نامعتبر', show_alert=True); return
+        await call.answer()
+        await panel_update(call, COUP_ACTION_HINT, reply_markup=action_keyboard(rid))
+        return
     try: room_id = int(parts[2])
     except (ValueError, IndexError):
         await call.answer('دکمه نامعتبر است.', show_alert=True); return
@@ -460,52 +502,79 @@ async def coup_buttons(call: CallbackQuery):
             if action in {'steal', 'assassinate', 'coup'}:
                 rows = await service.players(room_id)
                 buttons = [[InlineKeyboardButton(text=p['display_name'], callback_data=f'coup:target:{room_id}:{action}:{p["telegram_id"]}')] for p in rows if str(p['telegram_id']) != str(call.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-                await panel_update(call, 'هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
+                await panel_update(call, '🎯 هدف را انتخاب کن (یکی):', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
             state, result = await service.mutate(room_id, call.from_user.id, action)
         elif parts[1] == 'targets':
             action = parts[3]
             rows = await service.players(room_id)
             buttons = [[InlineKeyboardButton(text=p['display_name'], callback_data=f'coup:target:{room_id}:{action}:{p["telegram_id"]}')] for p in rows if str(p['telegram_id']) != str(call.from_user.id) and state.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-            await panel_update(call, 'هدف را انتخاب کن:', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
+            await panel_update(call, '🎯 هدف را انتخاب کن (یکی):', reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons)); await call.answer(); return
         elif parts[1] == 'target':
             action, target = parts[3], int(parts[4])
             state, result = await service.mutate(room_id, call.from_user.id, action, target)
         elif parts[1] == 'challenge':
+            action = 'challenge'
             state, result = await service.mutate(room_id, call.from_user.id, 'challenge')
         elif parts[1] == 'accept':
+            action = 'accept'
             state, result = await service.mutate(room_id, call.from_user.id, 'accept')
         elif parts[1] == 'block':
+            action = 'block'
             state, result = await service.mutate(room_id, call.from_user.id, 'block', exchange_cards=[parts[3]])
         else:
             await call.answer('دکمه ناشناخته است.', show_alert=True); return
+        # action may already be set in act branch
+        if parts[1] == 'act':
+            action = parts[3]
+        actor = call.from_user.full_name or call.from_user.username or str(call.from_user.id)
+        move = ACTION_FA.get(action, action)
+        # نام هدف اگر بود
+        target_label = ''
+        if parts[1] == 'target' and len(parts) > 4:
+            tid = int(parts[4])
+            try:
+                rows = await service.players(room_id)
+                target_label = next((p['display_name'] for p in rows if int(p['telegram_id']) == tid), str(tid))
+            except Exception:
+                target_label = str(parts[4])
+        announce = f'📣 {actor}: {move}'
+        if target_label:
+            announce += f' → روی {target_label}'
+        await _announce(call.bot, room['chat_id'], announce)
         arm_claim_timer(call.bot, room_id, room['chat_id'], state)
         await call.answer('انجام شد.')
         if result.get('pending'):
-            text = '⏳ اقدام در انتظار پاسخ است. پنجرهٔ چالش ۲۰ ثانیه است.'
+            text = f'⏳ {actor} «{move}» کرد — ۲۰ ثانیه برای چالش یا بلاک.'
+            await _announce(call.bot, room['chat_id'], text)
             await panel_update(call, text, reply_markup=claim_keyboard(room_id, state.get('pending_claim') or {}))
         else:
             if result.get('action') == 'challenge' and state.get('pending_loss'):
                 loser = int(state['pending_loss']['target'])
+                await _announce(call.bot, room['chat_id'], f'⚖️ چالش {actor}: یکی باید کارت از دست بدهد (آیدی {loser}).')
                 await panel_update(call, f'⚖️ نتیجهٔ چالش مشخص شد؛ بازیکن {loser} باید یک کارت نفوذ از دست بدهد و در خصوصی /coup_lose 1 یا /coup_lose 2 را بزند.')
                 try: await call.bot.send_message(loser, '⚖️ چالش انجام شد. برای انتخاب کارت ازدست‌رفته /coup_lose 1 یا /coup_lose 2 را بزن.')
                 except Exception: pass
             elif result.get('needs_exchange_choice'):
+                await _announce(call.bot, room['chat_id'], f'🔄 {actor} تبادل کارت را شروع کرد.')
                 await panel_update(call, 'تبادل شروع شد؛ کارت‌های پیشنهادی در خصوصی برایت ارسال می‌شوند.')
                 try: await call.bot.send_message(call.from_user.id, 'کارت‌های پیشنهادی: ' + '، '.join(ROLE_FA[c] for c in result['offered']) + '\n/coup_exchange role1 role2')
                 except Exception: pass
             elif result.get('blocked'):
+                await _announce(call.bot, room['chat_id'], f'🛡️ {actor} بلاک کرد؛ اقدام اصلی اجرا نشد.')
                 await panel_update(call, '🛡️ مسدودسازی پذیرفته شد؛ اقدام اصلی اجرا نشد.')
             elif state.get('pending_loss') and result.get('action') in {'assassinate', 'coup'}:
                 target = int(state['pending_loss']['target'])
+                await _announce(call.bot, room['chat_id'], f'⚔️ {actor} ضربه زد؛ هدف باید کارت از دست بدهد.')
                 await panel_update(call, '⚔️ هدف باید کارت ازدست‌رفته را در خصوصی انتخاب کند.')
                 try: await call.bot.send_message(target, 'برای انتخاب کارت ازدست‌رفته /coup_lose 1 یا /coup_lose 2 را بزن.')
                 except Exception: pass
             else:
+                await _announce(call.bot, room['chat_id'], f'✅ {announce} — انجام شد.')
                 try:
                     players = await service.players(room_id)
                     st2 = service.decode((await service.room(room_id))['state'])
                     targets = [(str(p['telegram_id']), p['display_name']) for p in players if str(p['telegram_id']) != str(call.from_user.id) and st2.get('players', {}).get(str(p['telegram_id']), {}).get('alive')]
-                    await panel_update(call, '✅ اقدام اجرا شد. نوبت بعدی — از دکمه‌ها استفاده کن.', reply_markup=action_keyboard(room_id, targets))
+                    await panel_update(call, '✅ اقدام اجرا شد.\nنوبت بعدی — یکی از دکمه‌ها را بزن (الکی چند تا نزن).', reply_markup=action_keyboard(room_id, targets))
                 except Exception:
                     await panel_update(call, '✅ اقدام اجرا شد. برای ادامه /coup_menu را بزن.')
     except ValueError as exc:

@@ -11,6 +11,7 @@ from games.events import service as event_service
 from games.daily import service as daily_service
 from games.reputation import service as rep_service
 from games.world_pulse import service as pulse_service
+from games.gym import service as gym_service
 
 BOSS_PRESETS = [
     {"boss_key": "shadow_colossus", "name": "غول سایه", "max_hp": 120000, "reward_pool": 8000},
@@ -95,6 +96,10 @@ async def attack_boss(user_id: int) -> dict[str, Any]:
     try:
         power = await army_advanced.total_army_power(user_id)
         atk = max(8, int(power.get("total") or 20) // 4 + random.randint(3, 12))
+        try:
+            atk += int((await gym_service.combat_bonus(user_id)).get("attack") or 0)
+        except Exception:
+            pass
     except Exception:
         atk = random.randint(20, 60)
     try:

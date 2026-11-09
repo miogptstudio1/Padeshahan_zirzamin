@@ -21,7 +21,8 @@ async def menu(user_id: int | None = None, show_web_app: bool = False):
         [InlineKeyboardButton(text='🏙️ امپراتوری', callback_data='menu:empire'),
          InlineKeyboardButton(text='⚔️ ارتش', callback_data='menu:army')],
         [InlineKeyboardButton(text='🛒 فروشگاه', callback_data='menu:shop'),
-         InlineKeyboardButton(text='🏪 بازار', callback_data='menu:market')],
+         InlineKeyboardButton(text='🏋️ زورخانه', callback_data='menu:gym')],
+        [InlineKeyboardButton(text='🏪 بازار', callback_data='menu:market')],
         [InlineKeyboardButton(text='🕶️ خلاف', callback_data='menu:crime'),
          InlineKeyboardButton(text='👹 باس', callback_data='menu:boss')],
         [InlineKeyboardButton(text='🕵️ جاسوسی', callback_data='menu:spy'),
@@ -118,6 +119,12 @@ async def profile(message: Message):
     except Exception:
         hp_txt = "—"
     try:
+        from games.gym import service as gym_service
+        gym_b = await gym_service.combat_bonus(message.from_user.id)
+        gym_txt = f"💪 {gym_b.get('strength',0)} ⚡ {gym_b.get('speed',0)} ❤️ {gym_b.get('vitality',0)} 🛡️ {gym_b.get('stamina',0)}"
+    except Exception:
+        gym_txt = "—"
+    try:
         army_pow = (await army_advanced.total_army_power(message.from_user.id)).get("total", 0)
     except Exception:
         army_pow = 0
@@ -133,6 +140,7 @@ async def profile(message: Message):
         f"⭐ شهرت: {rep_label} ({rep_score})\n"
         f"❤️ جان: {hp_txt}\n"
         f"⚔️ قدرت ارتش: {army_pow}\n"
+        f"🏋️ زورخانه: {gym_txt}\n"
         f"🆔 آیدی: <code>{message.from_user.id}</code>",
         parse_mode="HTML",
     )

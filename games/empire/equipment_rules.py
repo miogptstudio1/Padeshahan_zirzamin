@@ -54,3 +54,23 @@ def roll_box_reward(rng=None) -> dict:
     else:
         key = rng.choice(legendary_items)
     return {"type": "item", "key": key, "amount": 1, "item_key": key}
+
+
+def upgraded_item_stats(
+    weapon_key: str | None = None,
+    weapon_level: int = 0,
+    armor_key: str | None = None,
+    armor_level: int = 0,
+) -> dict[str, int]:
+    """آمار وسیله با سطح ارتقا (+8٪ حمله/دفاع به ازای هر سطح)."""
+    # backward compat: item_stats(weapon, armor)
+    if armor_key is None and isinstance(weapon_level, str):
+        # called like old item_stats? shouldn't happen
+        pass
+    w = ITEMS.get(weapon_key or "", {})
+    a = ITEMS.get(armor_key or "", {})
+    wl = max(0, min(10, int(weapon_level or 0)))
+    al = max(0, min(10, int(armor_level or 0)))
+    atk = int(w.get("attack", 0) * (1 + 0.08 * wl))
+    deff = int(a.get("defense", 0) * (1 + 0.08 * al))
+    return {"attack": atk, "defense": deff, "weapon_level": wl, "armor_level": al}
