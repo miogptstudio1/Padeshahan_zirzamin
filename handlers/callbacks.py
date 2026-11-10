@@ -14,6 +14,18 @@ async def menu_callback(call: CallbackQuery):
     uid = call.from_user.id
 
     try:
+        if key == "games":
+            await panel_update(
+                call,
+                "🎮 بازی‌های گروهی (تو گروه اسمش رو بزن):\n"
+                "جاسوس ناشناس · اتاق فرار · پادشاه خیانت\n"
+                "جزیره گمشده · کارآگاه خصوصی · نبرد امپراتوری‌ها\n"
+                "مزایده مرگبار · دادگاه سلطنتی · آخرین بازمانده\n"
+                "بمب ساعتی · شکار گنج · نبرد کلمات\n\n"
+                "سریع: تاس · شیر/خط · دوئل (ریپلای)\n"
+                "لیست: بازی‌ها",
+            )
+            return
         if key == "gym":
             from games.gym import service as gym_service
             from handlers.gym import gym_kb

@@ -16,7 +16,8 @@ router = Router()
 
 async def menu(user_id: int | None = None, show_web_app: bool = False):
     rows = [
-        [InlineKeyboardButton(text='🎭 مافیا', callback_data='menu:mafia'),
+        [InlineKeyboardButton(text='🎮 بازی‌ها', callback_data='menu:games'),
+         InlineKeyboardButton(text='🎭 مافیا', callback_data='menu:mafia'),
          InlineKeyboardButton(text='🃏 کودتا', callback_data='menu:coup')],
         [InlineKeyboardButton(text='🏙️ امپراتوری', callback_data='menu:empire'),
          InlineKeyboardButton(text='⚔️ ارتش', callback_data='menu:army')],

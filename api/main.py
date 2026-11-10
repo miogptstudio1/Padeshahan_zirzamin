@@ -46,6 +46,7 @@ def _build_dispatcher():
     from handlers.gender import router as gender_router
     from handlers.alliance import router as alliance_router
     from handlers.gym import router as gym_router
+    from handlers.minigames import router as minigames_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -66,6 +67,7 @@ def _build_dispatcher():
     dp.include_router(gender_router)
     dp.include_router(alliance_router)
     dp.include_router(gym_router)
+    dp.include_router(minigames_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)

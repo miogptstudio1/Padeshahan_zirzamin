@@ -427,6 +427,7 @@ async def connect_db():
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS died_at TIMESTAMPTZ",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT",
             "ALTER TABLE empire_equipment_inventory ADD COLUMN IF NOT EXISTS upgrade_level INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE game_rooms DROP CONSTRAINT IF EXISTS game_rooms_game_type_check",
             """CREATE TABLE IF NOT EXISTS player_gym_stats (
             telegram_id BIGINT PRIMARY KEY REFERENCES users(telegram_id) ON DELETE CASCADE,
             strength INTEGER NOT NULL DEFAULT 0,
