@@ -78,11 +78,12 @@ async def start(message: Message):
     name = message.from_user.full_name or message.from_user.username or "رفیق"
     kb = await menu(message.from_user.id, message.chat.type == 'private')
     await message.answer(
-        f"سلام {name}\n"
-        f"ربات آماده‌ست.\n\n"
-        f"مافیا و کودتا تو گروه، امپراتوری و فروشگاه هم همین‌جا.\n"
-        f"اگه گیر کردی بزن: <code>راهنما</code>\n\n"
-        f"وب‌اپ فقط از دکمه داخل ربات باز می‌شه، لینک مرورگر فایده نداره.",
+        f"اهلش هستی {name}؟\n"
+        f"خوش اومدی زیر زمین.\n\n"
+        f"مافیا و کودتا تو گروه.\n"
+        f"اینجا هم امپراتوری، بازار سیاه، خلاف و باس.\n"
+        f"گیج شدی بزن: <code>راهنما</code>\n\n"
+        f"وب‌اپ فقط از دکمهٔ داخل ربات باز می‌شه؛ لینک مرورگر بی‌فایده‌ست.",
         reply_markup=kb,
         parse_mode="HTML",
     )

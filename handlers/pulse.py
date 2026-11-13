@@ -26,7 +26,7 @@ async def cmd_pulse(message: Message):
 @router.message(F.text.in_({"باس گروه", "گروه باس", "باس گروهی"}))
 async def cmd_group_boss(message: Message):
     if message.chat.type not in {"group", "supergroup"}:
-        await message.answer("این دستور فقط تو گروه کار می‌کنه.\nتو گروه بنویس: باس گروه")
+        await message.answer("این یکی فقط تو گروه جواب می‌ده.\nهمونجا بزن: باس گروه")
         return
     try:
         await pulse_service.register_chat(message.chat.id, getattr(message.chat, "title", None))
@@ -56,14 +56,20 @@ async def cmd_group_boss(message: Message):
 @router.message(F.text.in_({"باس گروه بزن", "ضربه باس گروه"}))
 async def cmd_group_boss_hit(message: Message):
     if message.chat.type not in {"group", "supergroup"}:
-        await message.answer("فقط تو گروه.")
+        await message.answer("این ضربه فقط تو گروه حسابه.")
         return
     try:
         r = await pulse_service.attack_group_boss(message.chat.id, message.from_user.id)
         msg = (
             f"⚔️ به {r['boss_name']} زدی: −{r['damage']:,}\n"
-            f"❤️ {r['boss_hp']:,}/{r['boss_max']:,}"
+            f"❤️ باس: {r['boss_hp']:,}/{r['boss_max']:,}"
         )
+        php = r.get("player_hp") or {}
+        if php:
+            lost = php.get("lost", "?")
+            msg += f"\n🩸 تو: {php.get('hp', '?')}/{php.get('max_hp', '?')} (−{lost})"
+            if php.get("dead"):
+                msg += "\n💀 افتادی. ده دقیقه بعد زنده می‌شی."
         if r["defeated"]:
             msg += "\n\n💀 باس گروه افتاد! جوایز بین برترین‌ها پخش شد."
         await message.answer(msg)
@@ -94,7 +100,15 @@ async def gboss_cb(call):
     try:
         r = await pulse_service.attack_group_boss(chat_id, call.from_user.id)
         await call.answer(f"−{r['damage']}")
-        msg = f"{call.from_user.first_name}: −{r['damage']:,} به {r['boss_name']}\n❤️ {r['boss_hp']:,}/{r['boss_max']:,}"
+        msg = (
+            f"{call.from_user.first_name}: −{r['damage']:,} به {r['boss_name']}\n"
+            f"❤️ باس: {r['boss_hp']:,}/{r['boss_max']:,}"
+        )
+        php = r.get("player_hp") or {}
+        if php:
+            msg += f"\n🩸 خون تو: {php.get('hp', '?')}/{php.get('max_hp', '?')} (−{php.get('lost', '?')})"
+            if php.get("dead"):
+                msg += "\n💀 افتادی — ۱۰ دقیقه صبر."
         if r["defeated"]:
             msg += "\n💀 باس گروه شکست."
         await panel_update(call, msg)

@@ -11,6 +11,10 @@ from games.minigames import spyfall, escape, king
 from games.minigames import island, detective, empirewar, auction, court, laststand
 from games.minigames import bomb, treasure, wordwar
 from games.minigames import solo as solo_games
+from games.minigames import werewolf, crime_night, decoder, wordguess, memory, liar, trivia
+from games.minigames import pantomime, seccode
+from games.minigames import dungeon, merchant, magic, arena, apocalypse, society
+
 
 router = Router()
 
@@ -42,6 +46,21 @@ LABELS = {
     "bomb": "💣 بمب ساعتی",
     "treasure": "🗺️ شکار گنج",
     "wordwar": "📝 نبرد کلمات",
+    "werewolf": "🐺 گرگینه",
+    "crime_night": "🌙 شب جنایت",
+    "decoder": "🔐 رمزگشا",
+    "wordguess": "🔤 حدس کلمه",
+    "memory": "🧠 حافظه طلایی",
+    "liar": "🎭 دروغ‌سنج",
+    "trivia": "📚 نبرد دانایی",
+    "pantomime": "🎪 پانتومیم متنی",
+    "seccode": "🔢 کد مخفی",
+    "dungeon": "🏰 سلطان سیاه‌چال",
+    "merchant": "💼 تاجر بزرگ",
+    "magic": "🪄 آکادمی جادو",
+    "arena": "🏟️ قهرمان میدان",
+    "apocalypse": "☢️ دنیای آخرالزمان",
+    "society": "🕶️ انجمن مخفی",
 }
 
 
@@ -83,6 +102,21 @@ async def lobby_text(game: str, room_id: int) -> str:
         "bomb": "بمب رو پاس بده قبل از انفجار.",
         "treasure": "با سرنخ جای گنج رو پیدا کن.",
         "wordwar": "کلمه با حرف آخر قبلی.",
+        "werewolf": "شب گرگینه شکار می‌کنه؛ روز رأی دارین.",
+        "crime_night": "هرکی راز داره؛ قاتل رو پیدا کنین.",
+        "decoder": "با راهنما رمز رو بشکن.",
+        "wordguess": "حرف به حرف کلمه رو باز کن.",
+        "memory": "دنباله اعداد رو حفظ کن.",
+        "liar": "کدوم جمله دروغه؟",
+        "trivia": "سؤال عمومی؛ سریع جواب بده.",
+        "pantomime": "یکی توضیح می‌ده بدون اسم کلمه.",
+        "seccode": "کد ۴ رقمی؛ رقم درست/جابه‌جا.",
+        "dungeon": "سیاه‌چال بساز و امتیاز بگیر.",
+        "merchant": "خرید و فروش و احتکار.",
+        "magic": "آموزش و طلسم.",
+        "arena": "تمرین و مبارزه نوبتی.",
+        "apocalypse": "منابع و بقا.",
+        "society": "انجمن و توطئه.",
     }
     if game in tips:
         lines.append(tips[game])
@@ -181,6 +215,82 @@ async def create_treasure(message: Message):
 async def create_wordwar(message: Message):
     await _create(message, "wordwar")
 
+@router.message(Command("werewolf", "گرگینه"))
+@router.message(F.text.in_({"گرگینه", "werewolf"}))
+async def create_werewolf(message: Message):
+    await _create(message, "werewolf")
+
+@router.message(Command("crime_night", "شب_جنایت"))
+@router.message(F.text.in_({"شب جنایت", "شب‌جنایت"}))
+async def create_crime_night(message: Message):
+    await _create(message, "crime_night")
+
+@router.message(Command("decoder", "رمزگشا"))
+@router.message(F.text.in_({"رمزگشا", "decoder"}))
+async def create_decoder(message: Message):
+    await _create(message, "decoder")
+
+@router.message(Command("wordguess", "حدس_کلمه"))
+@router.message(F.text.in_({"حدس کلمه", "wordguess"}))
+async def create_wordguess(message: Message):
+    await _create(message, "wordguess")
+
+@router.message(Command("memory", "حافظه_طلایی"))
+@router.message(F.text.in_({"حافظه طلایی", "حافظه", "memory"}))
+async def create_memory(message: Message):
+    await _create(message, "memory")
+
+@router.message(Command("liar", "دروغ_سنج", "دروغ‌سنج"))
+@router.message(F.text.in_({"دروغ‌سنج", "دروغ سنج", "liar"}))
+async def create_liar(message: Message):
+    await _create(message, "liar")
+
+@router.message(Command("trivia", "نبرد_دانایی"))
+@router.message(F.text.in_({"نبرد دانایی", "دانایی", "trivia"}))
+async def create_trivia(message: Message):
+    await _create(message, "trivia")
+
+@router.message(Command("pantomime", "پانتومیم"))
+@router.message(F.text.in_({"پانتومیم متنی", "پانتومیم", "pantomime"}))
+async def create_pantomime(message: Message):
+    await _create(message, "pantomime")
+
+@router.message(Command("seccode", "کد_مخفی"))
+@router.message(F.text.in_({"کد مخفی", "seccode"}))
+async def create_seccode(message: Message):
+    await _create(message, "seccode")
+
+@router.message(Command("dungeon", "سیاه_چال", "سلطان_سیاه_چال"))
+@router.message(F.text.in_({"سلطان سیاه‌چال", "سلطان سیاه چال", "سیاه‌چال", "سیاه چال"}))
+async def create_dungeon(message: Message):
+    await _create(message, "dungeon")
+
+@router.message(Command("merchant", "تاجر_بزرگ"))
+@router.message(F.text.in_({"تاجر بزرگ", "تاجر", "merchant"}))
+async def create_merchant(message: Message):
+    await _create(message, "merchant")
+
+@router.message(Command("magic", "آکادمی_جادو"))
+@router.message(F.text.in_({"آکادمی جادو", "جادو", "magic"}))
+async def create_magic(message: Message):
+    await _create(message, "magic")
+
+@router.message(Command("arena", "قهرمان_میدان"))
+@router.message(F.text.in_({"قهرمان میدان", "میدان", "arena"}))
+async def create_arena(message: Message):
+    await _create(message, "arena")
+
+@router.message(Command("apocalypse", "آخرالزمان"))
+@router.message(F.text.in_({"دنیای آخرالزمان", "آخرالزمان", "apocalypse"}))
+async def create_apocalypse(message: Message):
+    await _create(message, "apocalypse")
+
+@router.message(Command("society", "انجمن_مخفی"))
+@router.message(F.text.in_({"انجمن مخفی", "انجمن", "society"}))
+async def create_society(message: Message):
+    await _create(message, "society")
+
+
 
 @router.message(Command("minigames", "بازیها", "بازی‌ها"))
 @router.message(F.text.in_({"بازی‌ها", "بازیها", "بازی های گروهی"}))
@@ -198,7 +308,12 @@ async def list_games(message: Message):
         "🏁 آخرین بازمانده\n"
         "💣 بمب ساعتی\n"
         "🗺️ شکار گنج\n"
-        "📝 نبرد کلمات\n\n"
+        "📝 نبرد کلمات\n"
+        "🐺 گرگینه · 🌙 شب جنایت\n"
+        "🔐 رمزگشا · 🔤 حدس کلمه · 🧠 حافظه\n"
+        "🎭 دروغ‌سنج · 📚 دانایی · 🎪 پانتومیم · 🔢 کد مخفی\n"
+        "🏰 سیاه‌چال · 💼 تاجر · 🪄 جادو · 🏟️ میدان\n"
+        "☢️ آخرالزمان · 🕶️ انجمن مخفی\n\n"
         "سریع (خصوصی/گروه):\n"
         "تاس · شیر یا خط · دوئل (ریپلای)\n\n"
         "اسم بازی رو تو گروه بفرست."
@@ -363,6 +478,111 @@ async def treasure_guess_msg(message: Message):
         await message.answer(f"حدس «{g}» ثبت شد.")
     except ValueError as e:
         await message.answer(str(e))
+
+
+@router.message(F.text.regexp(r"^(?:رمز)\s+(.+)$"))
+async def decoder_guess_msg(message: Message):
+    room = await R.get_open(message.chat.id, "decoder")
+    if not room or room["status"] != "playing":
+        return
+    g = (message.text or "").split(maxsplit=1)[-1].strip()
+    try:
+        res = await decoder.guess(room["id"], message.from_user.id, g)
+        if res.get("ok"):
+            await message.answer(f"🎉 {message.from_user.full_name} رمز را شکست!")
+        elif res.get("fail"):
+            await message.answer(f"💥 تمام شد. رمز: {res['state'].get('word')}")
+        else:
+            await message.answer(f"غلط. تلاش {res.get('tries')} — راهنما: {res.get('hint')}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+@router.message(F.text.regexp(r"^(?:حرف)\s+(.+)$"))
+async def wordguess_msg(message: Message):
+    room = await R.get_open(message.chat.id, "wordguess")
+    if not room or room["status"] != "playing":
+        return
+    letter = (message.text or "").split(maxsplit=1)[-1].strip()
+    try:
+        res = await wordguess.guess_letter(room["id"], message.from_user.id, letter)
+        st = res["state"]
+        board = " ".join(st.get("revealed") or [])
+        if res.get("done") and res.get("ok"):
+            await message.answer(f"🎉 کلمه کامل شد: {st.get('word')}")
+        elif res.get("done"):
+            await message.answer(f"💀 باختم. کلمه: {st.get('word')}")
+        else:
+            await message.answer(f"{board}\nغلط: {st.get('wrong')}/{st.get('max_wrong')}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+@router.message(F.text.regexp(r"^(?:حافظه)\s+(.+)$"))
+async def memory_msg(message: Message):
+    room = await R.get_open(message.chat.id, "memory")
+    if not room or room["status"] != "playing":
+        return
+    ans = (message.text or "").split(maxsplit=1)[-1].strip()
+    try:
+        res = await memory.answer(room["id"], message.from_user.id, ans)
+        if res.get("ok") and not res.get("done"):
+            seq = res["state"]["seq"]
+            await message.answer(f"✅ درست! سطح بعد. دنباله جدید (۱۰ ثانیه نگاه کن):\n{' '.join(map(str, seq))}")
+        elif res.get("ok"):
+            await message.answer(f"🏆 تمام! برنده امتیاز: {res['state'].get('winner_id')}")
+        else:
+            await message.answer(f"❌ غلط. پایان. برنده: {res['state'].get('winner_id')}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+@router.message(F.text.regexp(r"^(?:دانایی)\s+(.+)$"))
+async def trivia_msg(message: Message):
+    room = await R.get_open(message.chat.id, "trivia")
+    if not room or room["status"] != "playing":
+        return
+    ans = (message.text or "").split(maxsplit=1)[-1].strip()
+    try:
+        res = await trivia.answer(room["id"], message.from_user.id, ans)
+        if res.get("ok") and res.get("done"):
+            await message.answer(f"🏆 پایان! برنده: {res['state'].get('winner_id')}")
+        elif res.get("ok"):
+            await message.answer(f"✅ درست!\nسؤال بعد: {res['state'].get('q')}\nجواب: دانایی …")
+        else:
+            await message.answer("غلط.")
+    except ValueError as e:
+        await message.answer(str(e))
+
+@router.message(F.text.regexp(r"^(?:کد)\s+(\d{4})$"))
+async def seccode_msg(message: Message):
+    room = await R.get_open(message.chat.id, "seccode")
+    if not room or room["status"] != "playing":
+        return
+    g = (message.text or "").split()[-1]
+    try:
+        res = await seccode.guess(room["id"], message.from_user.id, g)
+        if res.get("ok"):
+            await message.answer(f"🎉 کد درست بود!")
+        elif res.get("fail"):
+            await message.answer(f"💥 تمام. کد: {res['state'].get('code')}")
+        else:
+            await message.answer(f"درستِ سرجا: {res['bulls']} · رقم درست جابه‌جا: {res['cows']}")
+    except ValueError as e:
+        await message.answer(str(e))
+
+@router.message(F.text.regexp(r"^(?:پانتو)\s+(.+)$"))
+async def panto_msg(message: Message):
+    room = await R.get_open(message.chat.id, "pantomime")
+    if not room or room["status"] != "playing":
+        return
+    g = (message.text or "").split(maxsplit=1)[-1].strip()
+    try:
+        res = await pantomime.guess(room["id"], message.from_user.id, g)
+        if res.get("ok"):
+            await message.answer(f"🎉 {message.from_user.full_name} درست حدس زد!")
+        else:
+            await message.answer("نه.")
+    except ValueError as e:
+        await message.answer(str(e))
+
 
 @router.callback_query(F.data.startswith("mg:"))
 async def mg_cb(call: CallbackQuery):
@@ -648,6 +868,98 @@ async def mg_cb(call: CallbackQuery):
                 )
                 await panel_update(call, text)
                 try: await call.bot.send_message(room["chat_id"], text)
+                except Exception: pass
+
+
+            elif game == "werewolf":
+                st = await werewolf.start(room_id)
+                await call.answer("شروع")
+                for pid, role in (st.get("roles") or {}).items():
+                    try:
+                        await call.bot.send_message(int(pid), f"🐺 نقش تو: {role}")
+                    except Exception:
+                        pass
+                text = "🐺 شب اول. گرگینه‌ها هدف انتخاب کنن. بعد: پایان شب گرگینه"
+                pl = await R.players(room_id)
+                rows = [[InlineKeyboardButton(text=p["display_name"][:28], callback_data=f"mg:werewolf:nvote:{room_id}:{p['telegram_id']}")] for p in pl]
+                rows.append([InlineKeyboardButton(text="⏭️ پایان شب", callback_data=f"mg:werewolf:nend:{room_id}")])
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                await panel_update(call, text, reply_markup=kb)
+                try: await call.bot.send_message(room["chat_id"], text, reply_markup=kb)
+                except Exception: pass
+            elif game == "crime_night":
+                st = await crime_night.start(room_id)
+                await call.answer("شروع")
+                for pid, info in (st.get("secrets") or {}).items():
+                    try:
+                        msg = f"🌙 راز تو: {info['secret']}"
+                        if info.get("is_killer"):
+                            msg += "\n🩸 تو قاتلی. لو نرو."
+                        await call.bot.send_message(int(pid), msg)
+                    except Exception:
+                        pass
+                pl = await R.players(room_id)
+                rows = [[InlineKeyboardButton(text=f"متهم {p['display_name'][:24]}", callback_data=f"mg:crime_night:vote:{room_id}:{p['telegram_id']}")] for p in pl]
+                rows.append([InlineKeyboardButton(text="📜 اعلام قاتل", callback_data=f"mg:crime_night:reveal:{room_id}")])
+                text = "🌙 شب جنایت. رازها خصوصی اومد. بحث کنین بعد متهم کنین."
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                await panel_update(call, text, reply_markup=kb)
+                try: await call.bot.send_message(room["chat_id"], text, reply_markup=kb)
+                except Exception: pass
+            elif game in {"decoder", "wordguess", "memory", "liar", "trivia", "pantomime", "seccode"}:
+                starter = {
+                    "decoder": decoder.start,
+                    "wordguess": wordguess.start,
+                    "memory": memory.start,
+                    "liar": liar.start,
+                    "trivia": trivia.start,
+                    "pantomime": pantomime.start,
+                    "seccode": seccode.start,
+                }[game]
+                st = await starter(room_id)
+                await call.answer("شروع")
+                if game == "decoder":
+                    text = f"🔐 رمزگشا\nراهنما: {st['hint']}\nحدس: رمز [کلمه]"
+                elif game == "wordguess":
+                    text = f"🔤 حدس کلمه\n{' '.join(st['revealed'])}\nبزن: حرف ب"
+                elif game == "memory":
+                    text = f"🧠 حافظه\nدنباله (۱۰ ثانیه): {' '.join(map(str, st['seq']))}\nبعد: حافظه ۱۲۳۴"
+                elif game == "liar":
+                    text = f"🎭 کدوم دروغه؟\n۱) {st['s1']}\n۲) {st['s2']}"
+                    kb = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="۱ دروغه", callback_data=f"mg:liar:vote:{room_id}:1"),
+                         InlineKeyboardButton(text="۲ دروغه", callback_data=f"mg:liar:vote:{room_id}:2")],
+                        [InlineKeyboardButton(text="📜 نتیجه", callback_data=f"mg:liar:reveal:{room_id}")],
+                    ])
+                    await panel_update(call, text, reply_markup=kb)
+                    try: await call.bot.send_message(room["chat_id"], text, reply_markup=kb)
+                    except Exception: pass
+                    return
+                elif game == "trivia":
+                    text = f"📚 سؤال: {st['q']}\nجواب: دانایی …"
+                elif game == "pantomime":
+                    try:
+                        await call.bot.send_message(int(st["actor"]), f"🎪 کلمه تو: {st['word']}\nتوضیح بده بدون گفتن خود کلمه.")
+                    except Exception:
+                        pass
+                    text = f"🎪 پانتومیم — توضیح‌دهنده: {st['actor']}\nحدس: پانتو [کلمه]"
+                else:
+                    text = "🔢 کد ۴ رقمی مخفیه.\nحدس: کد ۱۲۳۴\n(رقم سرجا / رقم درست جابه‌جا)"
+                await panel_update(call, text)
+                try: await call.bot.send_message(room["chat_id"], text)
+                except Exception: pass
+            elif game in {"dungeon", "merchant", "magic", "arena", "apocalypse", "society"}:
+                mod = {"dungeon": dungeon, "merchant": merchant, "magic": magic,
+                       "arena": arena, "apocalypse": apocalypse, "society": society}[game]
+                st = await mod.start(room_id)
+                await call.answer("شروع")
+                acts = mod.ACTS
+                rows = [[InlineKeyboardButton(text=a, callback_data=f"mg:{game}:act:{room_id}:{i}")] for i, a in enumerate(acts)]
+                rows.append([InlineKeyboardButton(text="⏭️ راند بعد", callback_data=f"mg:{game}:next:{room_id}")])
+                text = f"{LABELS[game]} — راند ۱/{st.get('max_rounds', 5)}\nعمل انتخاب کن."
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                await panel_update(call, text, reply_markup=kb)
+                try: await call.bot.send_message(room["chat_id"], text, reply_markup=kb)
                 except Exception: pass
 
             else:
@@ -1056,6 +1368,141 @@ async def mg_cb(call: CallbackQuery):
             await panel_update(call, msg)
             try: await call.bot.send_message(room["chat_id"], msg)
             except Exception: pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+
+
+    if game == "werewolf" and action == "nvote" and len(parts) >= 5:
+        try:
+            await werewolf.night_vote(room_id, call.from_user.id, int(parts[4]))
+            await call.answer("رأی شب")
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game == "werewolf" and action == "nend":
+        try:
+            st = await werewolf.resolve_night(room_id)
+            msg = f"صبح شد. قربانی شب: {st.get('last_victim')}"
+            pl = await R.players(room_id)
+            alive = st.get("alive") or {}
+            rows = [[InlineKeyboardButton(text=p["display_name"][:28], callback_data=f"mg:werewolf:dvote:{room_id}:{p['telegram_id']}")] for p in pl if alive.get(str(p["telegram_id"]))]
+            rows.append([InlineKeyboardButton(text="⏭️ پایان روز", callback_data=f"mg:werewolf:dend:{room_id}")])
+            kb = InlineKeyboardMarkup(inline_keyboard=rows)
+            await call.answer("صبح")
+            await panel_update(call, msg, reply_markup=kb)
+            try: await call.bot.send_message(room["chat_id"], msg, reply_markup=kb)
+            except Exception: pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game == "werewolf" and action == "dvote" and len(parts) >= 5:
+        try:
+            await werewolf.day_vote(room_id, call.from_user.id, int(parts[4]))
+            await call.answer("رأی روز")
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game == "werewolf" and action == "dend":
+        try:
+            st = await werewolf.resolve_day(room_id)
+            msg = f"اعدام: {st.get('last_hanged')}"
+            if st.get("phase") == "ended":
+                msg += f"\n🏁 برنده: {st.get('winner')}"
+            else:
+                msg += "\nشب بعد…"
+                pl = await R.players(room_id)
+                alive = st.get("alive") or {}
+                rows = [[InlineKeyboardButton(text=p["display_name"][:28], callback_data=f"mg:werewolf:nvote:{room_id}:{p['telegram_id']}")] for p in pl if alive.get(str(p["telegram_id"]))]
+                rows.append([InlineKeyboardButton(text="⏭️ پایان شب", callback_data=f"mg:werewolf:nend:{room_id}")])
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                await call.answer("شب")
+                await panel_update(call, msg, reply_markup=kb)
+                try: await call.bot.send_message(room["chat_id"], msg, reply_markup=kb)
+                except Exception: pass
+                return
+            await call.answer("پایان")
+            await panel_update(call, msg)
+            try: await call.bot.send_message(room["chat_id"], msg)
+            except Exception: pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+
+    if game == "crime_night" and action == "vote" and len(parts) >= 5:
+        try:
+            await crime_night.vote(room_id, call.from_user.id, int(parts[4]))
+            await call.answer("متهم شد")
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game == "crime_night" and action == "reveal":
+        try:
+            st = await crime_night.reveal(room_id)
+            msg = f"قاتل: {st.get('killer')} · متهم: {st.get('accused')}\n{'✅ درست' if st.get('caught') else '❌ اشتباه'}"
+            await call.answer("نتیجه")
+            await panel_update(call, msg)
+            try: await call.bot.send_message(room["chat_id"], msg)
+            except Exception: pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+
+    if game == "liar" and action == "vote" and len(parts) >= 5:
+        try:
+            await liar.vote(room_id, call.from_user.id, int(parts[4]))
+            await call.answer("رأی")
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game == "liar" and action == "reveal":
+        try:
+            st = await liar.reveal(room_id)
+            msg = f"دروغ جمله {st.get('lie')} بود.\nدرست‌ها: {st.get('winners')}"
+            await call.answer("نتیجه")
+            await panel_update(call, msg)
+            try: await call.bot.send_message(room["chat_id"], msg)
+            except Exception: pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+
+    if game in {"dungeon", "merchant", "magic", "arena", "apocalypse", "society"} and action == "act" and len(parts) >= 5:
+        mod = {"dungeon": dungeon, "merchant": merchant, "magic": magic,
+               "arena": arena, "apocalypse": apocalypse, "society": society}[game]
+        try:
+            idx = int(parts[4])
+            choice = mod.ACTS[idx] if 0 <= idx < len(mod.ACTS) else mod.ACTS[0]
+            res = await mod.act(room_id, call.from_user.id, choice)
+            await call.answer(f"+{res.get('gain', 0)}")
+            try:
+                await call.bot.send_message(room["chat_id"], f"{call.from_user.full_name}: {choice} (+{res.get('gain', 0)})")
+            except Exception:
+                pass
+        except ValueError as e:
+            await call.answer(str(e)[:180], show_alert=True)
+        return
+    if game in {"dungeon", "merchant", "magic", "arena", "apocalypse", "society"} and action == "next":
+        mod = {"dungeon": dungeon, "merchant": merchant, "magic": magic,
+               "arena": arena, "apocalypse": apocalypse, "society": society}[game]
+        try:
+            st = await mod.next_round(room_id)
+            if st.get("phase") == "ended":
+                msg = f"🏁 پایان. برنده: {st.get('winner_id')} · امتیازها: {st.get('scores')}"
+                await call.answer("پایان")
+                await panel_update(call, msg)
+                try: await call.bot.send_message(room["chat_id"], msg)
+                except Exception: pass
+            else:
+                acts = mod.ACTS
+                rows = [[InlineKeyboardButton(text=a, callback_data=f"mg:{game}:act:{room_id}:{i}")] for i, a in enumerate(acts)]
+                rows.append([InlineKeyboardButton(text="⏭️ راند بعد", callback_data=f"mg:{game}:next:{room_id}")])
+                msg = f"راند {st.get('round')} — عمل انتخاب کنید"
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                await call.answer("راند")
+                await panel_update(call, msg, reply_markup=kb)
+                try: await call.bot.send_message(room["chat_id"], msg, reply_markup=kb)
+                except Exception: pass
         except ValueError as e:
             await call.answer(str(e)[:180], show_alert=True)
         return

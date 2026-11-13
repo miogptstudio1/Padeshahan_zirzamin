@@ -138,14 +138,25 @@ def _owner_ok(call: CallbackQuery, owner_id: int) -> bool:
 
 
 def _format_catalog() -> str:
-    lines = ["🛒 <b>فروشگاه تجهیزات</b>\n"]
-    for key, meta in ITEMS.items():
+    return _format_catalog_page(0)
+
+
+def _format_catalog_page(page: int = 0) -> str:
+    keys = list(ITEMS.keys())
+    pages = max(1, (len(keys) + SHOP_PAGE_SIZE - 1) // SHOP_PAGE_SIZE)
+    page = max(0, min(int(page), pages - 1))
+    start = page * SHOP_PAGE_SIZE
+    chunk = keys[start:start + SHOP_PAGE_SIZE]
+    lines = [f"🛒 <b>بازار سیاه</b> — صفحه {page+1}/{pages}\n"]
+    for key in chunk:
+        meta = ITEMS[key]
         lines.append(
             f"• <b>{meta.get('name', key)}</b> — {meta.get('price', '?')} سکه"
             f" | AT{meta.get('attack', 0)} DF{meta.get('defense', 0)}"
-            f"\n  خرید: <code>خرید {meta.get('name', key)}</code>"
         )
-    lines.append(f"\n🎁 صندوق شانس: {BOX_PRICE} سکه — <code>صندوق</code>")
+    lines.append(f"\n🎁 صندوق شانس: {BOX_PRICE} سکه")
+    if page < pages - 1:
+        lines.append("بیشتر می‌خوای؟ «بعدی» رو بزن.")
     return "\n".join(lines)
 
 
@@ -192,7 +203,7 @@ def _format_box_result(result: dict) -> str:
 @router.message(F.text.in_({"فروشگاه", "مغازه", "شاپ", "store", "shop"}))
 async def shop_home(message: Message):
     await message.answer(
-        "فروشگاه\n"
+        "بازار سیاه بازه. چی می‌خوای ببری؟\n"
         "از دکمه‌ها بخر یا بنویس: خرید ... / تجهیز ... / موجودی",
         reply_markup=catalog_keyboard(message.from_user.id, 0),
     )
@@ -311,7 +322,7 @@ async def shop_callbacks(call: CallbackQuery):
         if action == "home":
             await call.answer()
             await panel_update(call, 
-                "🛒 فروشگاه — با بعدی بقیه کالاها رو ببین",
+                "🛒 بازار سیاه — با بعدی بقیه جنس‌ها رو ببین",
                 reply_markup=catalog_keyboard(call.from_user.id, 0),
             )
         elif action == "list":
@@ -372,6 +383,6 @@ async def shop_callbacks(call: CallbackQuery):
     except Exception as e:
         await call.answer("خطا", show_alert=True)
         try:
-            await panel_update(call, f"❌ {e}")
+            await panel_update(call, f"❌ {e}", reply_markup=catalog_keyboard(call.from_user.id, 0))
         except Exception:
             pass

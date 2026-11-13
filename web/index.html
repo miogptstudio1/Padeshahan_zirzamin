@@ -182,6 +182,7 @@ body{
         <button class="btn" id="btnWork">🧰 کار</button>
         <button class="btn" onclick="switchTab('map')">🗺️ قلمروها</button>
         <button class="btn" onclick="switchTab('crime')">🕶️ زیرزمین</button>
+        <button class="btn" onclick="switchTab('games')">🎮 بازی‌ها</button>
       </div>
     </div>
     <div class="panel" id="hideoutPanel">
@@ -386,6 +387,34 @@ body{
   </section>
 
   <!-- CHAT -->
+
+  <!-- GAMES -->
+  <section class="page" id="page-games">
+    <div class="panel">
+      <h2>🎮 بازی‌ها</h2>
+      <p class="muted">سریع‌ها همین‌جا؛ گروهی‌ها تو گروه تلگرام با دستور زیر کارت.</p>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn gold" id="btnDice">🎲 تاس</button>
+        <button class="btn gold" id="btnCoinHeads">🪙 شیر</button>
+        <button class="btn gold" id="btnCoinTails">🪙 خط</button>
+        <button class="btn" id="btnRefreshGames">↻ تازه‌سازی لیست</button>
+      </div>
+      <div id="soloGameResult" class="muted" style="margin-top:10px">—</div>
+    </div>
+    <div class="panel">
+      <h2>🎯 همه بازی‌ها</h2>
+      <div class="field"><label>جستجو</label><input id="gamesSearch" placeholder="مثلاً جاسوس، بمب، تاس…"></div>
+      <div id="gamesList" class="muted" style="margin-top:10px">در حال بارگذاری…</div>
+    </div>
+    <div class="panel">
+      <h2>📌 چطور بازی گروهی؟</h2>
+      <p class="muted">۱) ربات را تو گروه ادد کن<br>
+      ۲) اسم بازی را تو گروه بفرست (مثلاً «جاسوس ناشناس»)<br>
+      ۳) با دکمه‌ها جوین و شروع کن<br>
+      ۴) نقش‌های مخفی تو پی‌وی ربات می‌آید</p>
+    </div>
+  </section>
+
   <section class="page" id="page-chat">
     <div class="panel">
       <h2>💬 مرکز گفت‌وگو <span class="chip">زنده · ۲ث</span></h2>
@@ -407,6 +436,7 @@ body{
   <button class="nav-item active" data-tab="home" onclick="switchTab('home')"><span class="ico">🏠</span>خانه</button>
   <button class="nav-item" data-tab="map" onclick="switchTab('map')"><span class="ico">🗺️</span>قلمرو</button>
   <button class="nav-item" data-tab="army" onclick="switchTab('army')"><span class="ico">⚔️</span>ارتش</button>
+  <button class="nav-item" data-tab="games" onclick="switchTab('games')"><span class="ico">🎮</span>بازی</button>
   <button class="nav-item" data-tab="crime" onclick="switchTab('crime')"><span class="ico">🕶️</span>خلاف</button>
   <button class="nav-item" data-tab="ally" onclick="switchTab('ally')"><span class="ico">🤝</span>اتحاد</button>
   <button class="nav-item" data-tab="chat" onclick="switchTab('chat')"><span class="ico">💬</span>چت</button>
@@ -489,6 +519,7 @@ body{
       stopChatPolling();
     }
     if (name==='crime') loadHideout();
+    if (name==='games') { try{ loadGames(); }catch(e){} }
   }
   window.switchTab = switchTab;
 
@@ -1103,6 +1134,7 @@ body{
   const _oldSwitch = switchTab;
   switchTab = function(name){
     if(name==='army'){ try{ loadEquipment(); loadGym(); }catch(e){} }
+    if(name==='games'){ try{ loadGames(); }catch(e){} }
 
     _oldSwitch(name);
     if (name==='admin') loadStaffPanel();
@@ -1130,6 +1162,58 @@ body{
       toast('وب‌اپ را از دکمه داخل ربات باز کن', 'lose');
     }, 400);
   }
+
+  async function loadGames(){
+    try{
+      const data = await api('/api/games');
+      window.__gamesAll = data.games || [];
+      renderGamesList();
+    }catch(e){
+      const el = document.getElementById('gamesList');
+      if(el) el.textContent = e.message||'خطا';
+    }
+  }
+  function renderGamesList(){
+    const el = document.getElementById('gamesList');
+    if(!el) return;
+    const q = (document.getElementById('gamesSearch')?.value || '').trim();
+    let list = window.__gamesAll || [];
+    if(q){
+      list = list.filter(g => (g.title+g.cmd+g.desc+g.key).includes(q));
+    }
+    if(!list.length){ el.innerHTML = '<p class="muted">چیزی پیدا نشد</p>'; return; }
+    el.innerHTML = list.map(g => {
+      const badge = g.kind==='solo' ? '<span class="chip">سریع</span>' : '<span class="chip">گروهی</span>';
+      return `<div class="list-row"><div><b>${g.emoji||''} ${esc(g.title)}</b> ${badge}
+        <div class="muted">${esc(g.desc||'')}</div>
+        <div class="muted">دستور: <code>${esc(g.cmd||'')}</code></div>
+      </div></div>`;
+    }).join('');
+  }
+  document.getElementById('btnRefreshGames')?.addEventListener('click', loadGames);
+  document.getElementById('gamesSearch')?.addEventListener('input', renderGamesList);
+  document.getElementById('btnDice')?.addEventListener('click', async ()=>{
+    try{
+      const r = await act('/api/games/solo/dice','POST',{},'تاس…');
+      const el = document.getElementById('soloGameResult');
+      if(el) el.textContent = `🎲 ${r.a}+${r.b}=${r.total}` + (r.reward?` · +${r.reward} سکه`:' · خالی');
+    }catch(e){}
+  });
+  document.getElementById('btnCoinHeads')?.addEventListener('click', async ()=>{
+    try{
+      const r = await act('/api/games/solo/coin','POST',{pick:'شیر'},'سکه…');
+      const el = document.getElementById('soloGameResult');
+      if(el) el.textContent = `🪙 ${r.result_fa} · ${r.win?'برد +'+r.reward:'باخت'}`;
+    }catch(e){}
+  });
+  document.getElementById('btnCoinTails')?.addEventListener('click', async ()=>{
+    try{
+      const r = await act('/api/games/solo/coin','POST',{pick:'خط'},'سکه…');
+      const el = document.getElementById('soloGameResult');
+      if(el) el.textContent = `🪙 ${r.result_fa} · ${r.win?'برد +'+r.reward:'باخت'}`;
+    }catch(e){}
+  });
+
 })();
 </script>
 </body>

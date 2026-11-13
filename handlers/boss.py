@@ -64,7 +64,7 @@ async def cmd_boss_hit(message: Message):
             f"مجموع آسیب تو: {r['my_damage']:,}"
         )
         if r.get("player_hp"):
-            msg += f"\n❤️ جان: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
+            msg += f"\n🩸 خون تو: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
             if r['player_hp'].get('dead'):
                 msg += "\n💀 مردی. ۱۰ دقیقه بعد زنده می‌شی."
         if r["defeated"]:
@@ -95,7 +95,7 @@ async def boss_cb(call):
             await call.answer(f"−{r['damage']}")
             msg = f"ضربه {r['damage']:,} · جان باس {r['boss_hp']:,}/{r['boss_max']:,}"
             if r.get("player_hp"):
-                msg += f"\n❤️ جان: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
+                msg += f"\n🩸 خون تو: {r['player_hp']['hp']}/{r['player_hp']['max_hp']} (−{r['player_hp'].get('lost', '?')})"
             if r['player_hp'].get('dead'):
                 msg += "\n💀 مردی. ۱۰ دقیقه بعد زنده می‌شی."
             if r["defeated"]:

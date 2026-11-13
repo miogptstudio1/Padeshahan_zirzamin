@@ -33,7 +33,7 @@ async def menu_callback(call: CallbackQuery):
             await panel_update(call, text, reply_markup=gym_kb(uid))
             return
         if key == "shop":
-            from handlers.shop import catalog_keyboard, _format_catalog_page
+            from handlers.shop import catalog_keyboard, _format_catalog_page  # noqa: F401
             await panel_update(
                 call,
                 _format_catalog_page(0),
@@ -45,7 +45,7 @@ async def menu_callback(call: CallbackQuery):
             from handlers.empire import empire_keyboard
             await panel_update(
                 call,
-                "امپراتوری\nاز دکمه‌ها استفاده کن.",
+                "امپراتوری زیرزمین.\nقلمرو بگیر، مالیات بکش، جنگ راه بنداز.",
                 reply_markup=empire_keyboard(uid),
             )
             return
@@ -76,7 +76,9 @@ async def menu_callback(call: CallbackQuery):
         if key == "crime":
             await panel_update(
                 call,
-                "🕶️ خلاف\nحمله · جیب‌بری · باج · قاچاق · آتش · یورش · دعوا\nپناهگاه · جان · هیل",
+                "🕶️ کار کثیف\n"
+                "حمله · جیب‌بری · باج · قاچاق · آتش · یورش · دعوا\n"
+                "جونت تموم شد؟ هیل بزن. مردی ده دقیقه خاکی.",
             )
             return
         if key == "help":
@@ -87,19 +89,19 @@ async def menu_callback(call: CallbackQuery):
             await panel_update(call, "برای پروفایل کامل بنویس: پروفایل")
             return
     except Exception as exc:
-        await panel_update(call, f"الان باز نشد: {exc}")
+        await panel_update(call, f"گیر کرد: {exc}")
         return
 
     texts = {
-        "mafia": "مافیا تو گروه: مافیا بساز · جوین · شروع",
-        "coup": "کودتا تو گروه: کودتا بساز · جوین · شروع",
-        "market": "بازار\nبزن: بازار",
-        "pulse": "ایونت جهان\nبزن: وضعیت جهان",
-        "spy": "جاسوسی با ریپلای یا آیدی",
-        "missions": "بزن: مأموریت",
-        "family": "ساخت خاندان اسم | تگ",
-        "event": "بزن: ایونت",
-        "rules": "احترام · نقش لو نده · اسپم نکن",
-        "admin": "بزن: ادمین",
+        "mafia": "مافیا تو گروه: مافیا بساز · جوین · شروع. نقش‌ها خصوصی میان.",
+        "coup": "کودتا تو گروه: کودتا بساز. دکمه‌ها توضیح دارن؛ الکی نزن.",
+        "market": "بازار بازیکن‌ها.\nبزن: بازار",
+        "pulse": "شهر شلوغ شده؟\nبزن: وضعیت جهان",
+        "spy": "جاسوسی: ریپلای کن یا آیدی بده.",
+        "missions": "کار روزانه.\nبزن: مأموریت",
+        "family": "خونت کجاست؟\nساخت خاندان اسم | تگ",
+        "event": "رقابت فصل.\nبزن: ایونت",
+        "rules": "احترام · نقش لو نده · اسپم نکن · پنل بقیه رو لمس نکن",
+        "admin": "پنل ادمین.\nبزن: ادمین",
     }
-    await panel_update(call, texts.get(key, "از منو انتخاب کن."))
+    await panel_update(call, texts.get(key, "از منو یکی رو بردار."))
