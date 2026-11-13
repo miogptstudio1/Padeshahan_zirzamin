@@ -1089,3 +1089,60 @@ async def claim_progression_achievement(body: AchievementClaimRequest, user: dic
         return await progression_service.claim_achievement(int(user["id"]), body.achievement_key)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+
+# ——— Games (web app) ———
+GAMES_CATALOG = [
+    {"key": "spyfall", "title": "جاسوس ناشناس", "emoji": "🕵️", "kind": "group", "cmd": "جاسوس ناشناس", "desc": "یکی مکان را نمی‌داند"},
+    {"key": "escape", "title": "اتاق فرار", "emoji": "🔐", "kind": "group", "cmd": "اتاق فرار", "desc": "معما با زمان محدود"},
+    {"key": "kingbetray", "title": "پادشاه خیانت", "emoji": "👑", "kind": "group", "cmd": "پادشاه خیانت", "desc": "تاج و خائن مخفی"},
+    {"key": "island", "title": "جزیره گمشده", "emoji": "🏝️", "kind": "group", "cmd": "جزیره گمشده", "desc": "بقا با غذای محدود"},
+    {"key": "detective", "title": "کارآگاه خصوصی", "emoji": "🔎", "kind": "group", "cmd": "کارآگاه خصوصی", "desc": "پرونده و سرنخ"},
+    {"key": "empirewar", "title": "نبرد امپراتوری‌ها", "emoji": "⚔️", "kind": "group", "cmd": "نبرد امپراتوری‌ها", "desc": "دو تیم قرمز/آبی"},
+    {"key": "auction", "title": "مزایده مرگبار", "emoji": "💰", "kind": "group", "cmd": "مزایده مرگبار", "desc": "بودجه محدود"},
+    {"key": "court", "title": "دادگاه سلطنتی", "emoji": "⚖️", "kind": "group", "cmd": "دادگاه سلطنتی", "desc": "متهم و حکم"},
+    {"key": "laststand", "title": "آخرین بازمانده", "emoji": "🏁", "kind": "group", "cmd": "آخرین بازمانده", "desc": "حذف تا یک نفر"},
+    {"key": "bomb", "title": "بمب ساعتی", "emoji": "💣", "kind": "group", "cmd": "بمب ساعتی", "desc": "پاس قبل از انفجار"},
+    {"key": "treasure", "title": "شکار گنج", "emoji": "🗺️", "kind": "group", "cmd": "شکار گنج", "desc": "سرنخ و مکان"},
+    {"key": "wordwar", "title": "نبرد کلمات", "emoji": "📝", "kind": "group", "cmd": "نبرد کلمات", "desc": "حرف آخر قبلی"},
+    {"key": "werewolf", "title": "گرگینه", "emoji": "🐺", "kind": "group", "cmd": "گرگینه", "desc": "شب و روز"},
+    {"key": "crime_night", "title": "شب جنایت", "emoji": "🌙", "kind": "group", "cmd": "شب جنایت", "desc": "قاتل مخفی"},
+    {"key": "decoder", "title": "رمزگشا", "emoji": "🔓", "kind": "group", "cmd": "رمزگشا", "desc": "شکستن رمز"},
+    {"key": "wordguess", "title": "حدس کلمه", "emoji": "🔤", "kind": "group", "cmd": "حدس کلمه", "desc": "حرف به حرف"},
+    {"key": "memory", "title": "حافظه طلایی", "emoji": "🧠", "kind": "group", "cmd": "حافظه طلایی", "desc": "دنباله اعداد"},
+    {"key": "liar", "title": "دروغ‌سنج", "emoji": "🎭", "kind": "group", "cmd": "دروغ‌سنج", "desc": "جمله دروغ"},
+    {"key": "trivia", "title": "نبرد دانایی", "emoji": "📚", "kind": "group", "cmd": "نبرد دانایی", "desc": "اطلاعات عمومی"},
+    {"key": "pantomime", "title": "پانتومیم متنی", "emoji": "🎪", "kind": "group", "cmd": "پانتومیم", "desc": "توضیح بدون اسم"},
+    {"key": "seccode", "title": "کد مخفی", "emoji": "🔢", "kind": "group", "cmd": "کد مخفی", "desc": "کد ۴ رقمی"},
+    {"key": "dungeon", "title": "سلطان سیاه‌چال", "emoji": "🏰", "kind": "group", "cmd": "سلطان سیاه‌چال", "desc": "مدیریت سیاه‌چال"},
+    {"key": "merchant", "title": "تاجر بزرگ", "emoji": "💼", "kind": "group", "cmd": "تاجر بزرگ", "desc": "خرید و فروش"},
+    {"key": "magic", "title": "آکادمی جادو", "emoji": "🪄", "kind": "group", "cmd": "آکادمی جادو", "desc": "طلسم و دوئل"},
+    {"key": "arena", "title": "قهرمان میدان", "emoji": "🏟️", "kind": "group", "cmd": "قهرمان میدان", "desc": "مبارزه نوبتی"},
+    {"key": "apocalypse", "title": "دنیای آخرالزمان", "emoji": "☢️", "kind": "group", "cmd": "دنیای آخرالزمان", "desc": "بقا و منابع"},
+    {"key": "society", "title": "انجمن مخفی", "emoji": "🕶️", "kind": "group", "cmd": "انجمن مخفی", "desc": "توطئه و عضو"},
+    {"key": "dice", "title": "تاس شانس", "emoji": "🎲", "kind": "solo", "cmd": "تاس", "desc": "شانس سکه"},
+    {"key": "coin", "title": "شیر یا خط", "emoji": "🪙", "kind": "solo", "cmd": "شیر / خط", "desc": "پرتاب سکه"},
+    {"key": "duel", "title": "دوئل", "emoji": "⚔️", "kind": "solo", "cmd": "دوئل (ریپلای)", "desc": "نبرد قدرت با یک نفر"},
+]
+
+
+@app.get("/api/games")
+async def api_games_list(user: dict = Depends(current_user)):
+    return {"games": GAMES_CATALOG}
+
+
+@app.post("/api/games/solo/dice")
+async def api_games_dice(user: dict = Depends(current_user)):
+    from games.minigames import solo as solo_games
+    return await solo_games.dice(int(user["id"]))
+
+
+@app.post("/api/games/solo/coin")
+async def api_games_coin(body: dict, user: dict = Depends(current_user)):
+    from games.minigames import solo as solo_games
+    pick = (body or {}).get("pick") or "شیر"
+    try:
+        return await solo_games.coin_flip(int(user["id"]), str(pick))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

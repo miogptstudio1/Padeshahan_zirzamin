@@ -5,8 +5,8 @@ import json
 from typing import Any
 from core.database import db
 
-GAME_TYPES = ("spyfall", "escape", "kingbetray", "island", "detective", "empirewar", "auction", "court", "laststand", "bomb", "treasure", "wordwar")
-MIN_PLAYERS = {"spyfall": 3, "escape": 2, "kingbetray": 3, "island": 2, "detective": 2, "empirewar": 4, "auction": 2, "court": 3, "laststand": 3, "bomb": 3, "treasure": 2, "wordwar": 2}
+GAME_TYPES = ("spyfall", "escape", "kingbetray", "island", "detective", "empirewar", "auction", "court", "laststand", "bomb", "treasure", "wordwar", "werewolf", "crime_night", "decoder", "wordguess", "memory", "liar", "trivia", "pantomime", "seccode", "dungeon", "merchant", "magic", "arena", "apocalypse", "society")
+MIN_PLAYERS = {"spyfall": 3, "escape": 2, "kingbetray": 3, "island": 2, "detective": 2, "empirewar": 4, "auction": 2, "court": 3, "laststand": 3, "bomb": 3, "treasure": 2, "wordwar": 2, "werewolf": 5, "crime_night": 4, "decoder": 2, "wordguess": 2, "memory": 2, "liar": 3, "trivia": 2, "pantomime": 3, "seccode": 2, "dungeon": 1, "merchant": 2, "magic": 2, "arena": 2, "apocalypse": 2, "society": 3}
 MAX_PLAYERS = 12
 
 
@@ -19,7 +19,7 @@ async def ensure_game_types(conn) -> None:
     try:
         await conn.execute(
             """ALTER TABLE game_rooms ADD CONSTRAINT game_rooms_game_type_check
-               CHECK (game_type IN ('mafia','empire','coup','spyfall','escape','kingbetray','island','detective','empirewar','auction','court','laststand','bomb','treasure','wordwar'))"""
+               CHECK (game_type IN ('mafia','empire','coup','spyfall','escape','kingbetray','island','detective','empirewar','auction','court','laststand','bomb','treasure','wordwar','werewolf','crime_night','decoder','wordguess','memory','liar','trivia','pantomime','seccode','dungeon','merchant','magic','arena','apocalypse','society'))"""
         )
     except Exception:
         pass
