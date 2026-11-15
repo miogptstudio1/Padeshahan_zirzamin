@@ -9,6 +9,31 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from handlers.panel_ui import panel_update
 from games.gym import service as gym_service
 from games.empire import equipment as equipment_service
+
+async def _upgrade_panel(uid: int, note: str = "") -> tuple[str, InlineKeyboardMarkup | None]:
+    data = await equipment_service.dashboard(uid)
+    inv = data.get("inventory") or []
+    lines = []
+    if note:
+        lines.append(note)
+        lines.append("")
+    lines.append("🔧 ارتقای تجهیزات — یکی را بزن:")
+    rows = []
+    for it in inv[:12]:
+        key = it.get("key")
+        lv = int(it.get("upgrade_level") or 0)
+        name = it.get("name") or key
+        lines.append(f"• {name} +{lv}")
+        rows.append([InlineKeyboardButton(
+            text=f"⬆️ {name} +{lv}",
+            callback_data=f"equp:{uid}:{key}",
+        )])
+    if not inv:
+        lines.append("وسیله‌ای نداری.")
+    kb = InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+    return "\n".join(lines), kb
+
+
 from games.empire.equipment_rules import ITEMS
 
 router = Router()
@@ -164,11 +189,12 @@ async def equp_cb(call: CallbackQuery):
     try:
         r = await equipment_service.upgrade_item(call.from_user.id, key)
         await call.answer(f"+{r['level']}")
-        await panel_update(
-            call,
+        note = (
             f"⬆️ {r['name']} → +{r['level']}\n"
             f"ATK {r['attack']} · DEF {r['defense']}\n"
-            f"−{r['cost']} · موجودی {r['balance']}",
+            f"−{r['cost']} · موجودی {r['balance']}"
         )
+        text, kb = await _upgrade_panel(call.from_user.id, note)
+        await panel_update(call, text, reply_markup=kb)
     except ValueError as e:
         await call.answer(str(e)[:180], show_alert=True)

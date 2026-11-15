@@ -154,7 +154,7 @@ async def send_night_prompts(bot, room_id: int):
         except Exception: pass
 
 @router.message(Command('mafia_create', 'مافیا_بساز'))
-@router.message(F.text.in_({'مافیا بساز', 'ساخت مافیا', 'اتاق مافیا'}))
+@router.message(F.text.in_({'مافیا بساز', 'ساخت مافیا', 'اتاق مافیا', 'بساز مافیا', 'یه مافیا بساز', 'مافیا جدید'}))
 async def create(message: Message):
     if not message.chat or message.chat.type=='private':
         await message.answer('این دستور را داخل گروه بازی بفرست.'); return
@@ -237,13 +237,7 @@ async def status_callback(call: CallbackQuery):
 async def rules_callback(call: CallbackQuery):
     await call.answer()
     if call.message:
-        await panel_update(call, 
-            '📜 قوانین مافیا\n'
-            '• نقش‌ها: مافیا، پزشک، کارآگاه، شهروند\n'
-            '• شب: اقدام نقش‌دارها · روز: بحث و رأی\n'
-            '• قبل از شروع همه باید در خصوصی ربات «شروع» زده باشند\n'
-            '• نقش مخفی را در گروه فاش نکن'
-        )
+        await panel_update(call, '📜 قوانین مافیا — پادشاهان زیرزمین\n\nساخت و جوین:\nمافیا بساز · مافیا جوین · مافیا شروع · مافیا وضعیت · مافیا قوانین · مافیا لغو\n\nقبل شروع همه تو پی\u200cوی ربات «شروع» بزنن.\n\nنقش\u200cها (خصوصی می\u200cاد، تو گروه لو نده):\n• مافیا — شب یکی رو می\u200cزنه\n• پزشک — شب یکی رو سیو می\u200cکنه\n• کارآگاه — شب استعلام می\u200cگیره\n• شهروند — روز با بحث و رأی مافیا رو پیدا کن\n\nجریان:\nمعارفه → شب اقدام → روز بحث/چالش/رأی\n\nچالش: ریپلای روی نفر + بنویس «چالش»\nپوشش: ریپلای روی همون نفر + بنویس «پوشش»\n\nگزارش: مافیا گزارش [توضیح]\n')
 
 
 @router.callback_query(F.data.startswith('ma:cancel:'))
@@ -259,7 +253,7 @@ async def cancel_callback(call: CallbackQuery):
 
 
 @router.message(Command('mafia_join', 'مافیا_جوین'))
-@router.message(F.text.in_({'مافیا جوین', 'جوین مافیا', 'پیوستن مافیا'}))
+@router.message(F.text.in_({'مافیا جوین', 'جوین مافیا', 'پیوستن مافیا', 'میام مافیا', 'ورود مافیا', 'عضو مافیا'}))
 async def join_command(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('اتاقی برای ثبت‌نام پیدا نشد.'); return
@@ -269,7 +263,7 @@ async def join_command(message: Message):
     except ValueError as e: await message.answer(str(e))
 
 @router.message(Command('mafia_status', 'مافیا_وضعیت'))
-@router.message(F.text.in_({'مافیا وضعیت', 'وضعیت مافیا'}))
+@router.message(F.text.in_({'مافیا وضعیت', 'وضعیت مافیا', 'حالت مافیا', 'استاتوس مافیا'}))
 async def status(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('در این گروه اتاق فعالی وجود ندارد.'); return
@@ -280,7 +274,7 @@ async def status(message: Message):
     await message.answer('\n'.join(lines))
 
 @router.message(Command('mafia_start', 'مافیا_شروع'))
-@router.message(F.text.in_({'مافیا شروع', 'شروع مافیا'}))
+@router.message(F.text.in_({'مافیا شروع', 'شروع مافیا', 'شروع بازی مافیا', 'بازی مافیا شروع'}))
 async def start(message: Message):
     room=await service.get_open_room(message.chat.id)
     if not room: await message.answer('اول با /mafia_create اتاق بساز.'); return
@@ -374,7 +368,7 @@ async def handshake_done(message: Message):
     except ValueError as e:
         await message.answer(str(e))
 
-@router.message(F.text == 'چالش')
+@router.message(F.text.in_({'چالش', 'چالشش', 'چالش می‌کنم'}))
 async def exact_challenge(message: Message):
     if message.chat.type == 'private':
         await message.answer('برای چالش، در گروه بازی روی پیام بازیکن موردنظر Reply کن و دقیقاً «چالش» بفرست.')
@@ -392,7 +386,7 @@ async def exact_challenge(message: Message):
     except ValueError as e:
         await message.answer(str(e))
 
-@router.message(F.text == 'پوشش')
+@router.message(F.text.in_({'پوشش', 'پوششش', 'پوشش می‌دم'}))
 async def exact_cover(message: Message):
     if message.chat.type == 'private':
         await message.answer('برای پوشش، در گروه بازی روی پیام بازیکن چالش‌شده Reply کن و دقیقاً «پوشش» بفرست.')
@@ -469,7 +463,7 @@ async def reports(message: Message):
     await message.answer('\n'.join(lines))
 
 @router.message(Command('mafia_cancel', 'مافیا_لغو'))
-@router.message(F.text.in_({'مافیا لغو', 'لغو مافیا'}))
+@router.message(F.text.in_({'مافیا لغو', 'لغو مافیا', 'کنسل مافیا', 'ببند مافیا'}))
 async def cancel(message: Message):
     if message.chat.type == 'private':
         await message.answer('این دستور را در گروه اتاق بفرست.')
@@ -486,20 +480,7 @@ async def cancel(message: Message):
     except ValueError as e:
         await message.answer(str(e))
 
-@router.message(Command('mafia_rules', 'مافیا_قوانین'))
-@router.message(F.text.in_({'مافیا قوانین', 'قوانین مافیا'}))
+@router.message(Command('mafia_rules', 'مافیا_قوانین', 'قوانین_مافیا'))
+@router.message(F.text.in_({'مافیا قوانین', 'قوانین مافیا', 'قوانین بازی مافیا', 'راهنما مافیا', 'مافیا راهنما'}))
 async def rules(message: Message):
-    await message.answer(
-        '📜 قوانین فعلی مافیای پادشاهان زیرزمین\n'
-        '• ثبت‌نام و شروع بازی با دستورهای /mafia_create و /mafia_join و /mafia_start انجام می‌شود.\n'
-        '• نقش‌ها خصوصی‌اند؛ فاش‌کردن نقش خود یا دیگری ممنوع است.\n'
-        '• اقدام شبانه فقط از خصوصی ربات انجام می‌شود.\n'
-        '• روز معارفه ۳۰ ثانیه است و در آن چالش و رأی‌گیری نداریم؛ سپس شب معارفهٔ ۳۰ ثانیه‌ای برگزار می‌شود.\n'
-        '• وقتی سه بازیکن زنده باقی بمانند، مرحلهٔ دست‌دادن آغاز می‌شود؛ پایان آن با /mafia_handshake_done ثبت می‌شود.\n'
-        '• روزها برای چالش، پوشش و رأی‌گیری استفاده می‌شوند.\n'
-        '• برای چالش، روی پیام بازیکن زنده Reply کن و دقیقاً «چالش» بفرست.\n'
-        '• هدف چالش‌شده فقط پس از دریافت پوشش از بازیکن زندهٔ دیگری، در رأی‌گیری هدف معتبر می‌شود. برای پوشش، روی پیام همان بازیکن Reply کن و دقیقاً «پوشش» بفرست.\n'
-        '• اگر در روز هیچ چالشی ثبت نشود، رأی‌گیری میان تمام بازیکنان زنده انجام می‌شود.\n'
-        '• گزارش تخلف: /mafia_report توضیح\n'
-        '• این نسخه آزمایشی است؛ تشخیص خودکار همهٔ افشاگری‌ها یا خروج از خصوصی هنوز پیاده‌سازی نشده است.'
-    )
+    await message.answer('📜 قوانین مافیا — پادشاهان زیرزمین\n\nساخت و جوین:\nمافیا بساز · مافیا جوین · مافیا شروع · مافیا وضعیت · مافیا قوانین · مافیا لغو\n\nقبل شروع همه تو پی\u200cوی ربات «شروع» بزنن.\n\nنقش\u200cها (خصوصی می\u200cاد، تو گروه لو نده):\n• مافیا — شب یکی رو می\u200cزنه\n• پزشک — شب یکی رو سیو می\u200cکنه\n• کارآگاه — شب استعلام می\u200cگیره\n• شهروند — روز با بحث و رأی مافیا رو پیدا کن\n\nجریان:\nمعارفه → شب اقدام → روز بحث/چالش/رأی\n\nچالش: ریپلای روی نفر + بنویس «چالش»\nپوشش: ریپلای روی همون نفر + بنویس «پوشش»\n\nگزارش: مافیا گزارش [توضیح]\n')

@@ -307,6 +307,86 @@ async def cmd_coins(message: Message):
         await message.answer(f"❌ {e}")
 
 
+
+
+def _parse_currency_args(body: str):
+    """Return (mode, amount, target) from body after currency name stripped."""
+    mode = "add"
+    parts = body.split()
+    if not parts:
+        raise ValueError("فرمت نادرست")
+    if parts[0] in {"تنظیم", "set"} and len(parts) >= 3:
+        mode = "set"
+        amount = int(parts[1].replace(",", ""))
+        target = int(parts[2])
+    elif parts[0] in {"add", "set"} and len(parts) >= 3:
+        mode = "set" if parts[0] == "set" else "add"
+        amount = int(parts[1].replace(",", ""))
+        target = int(parts[2])
+    elif len(parts) >= 2:
+        amount = int(parts[0].replace(",", ""))
+        target = int(parts[1])
+    else:
+        raise ValueError("فرمت نادرست")
+    return mode, amount, target
+
+
+async def _grant_currency(message: Message, currency: str, label: str):
+    if not await _require_staff(message):
+        return
+    raw = (message.text or "").split(maxsplit=1)
+    if len(raw) < 2:
+        await message.answer(
+            f"مثال‌ها:\n"
+            f"• <code>{label} +1 123456</code>\n"
+            f"• <code>{label} -1 123456</code>\n"
+            f"• <code>{label} تنظیم 5 123456</code>",
+            parse_mode="HTML",
+        )
+        return
+    try:
+        mode, amount, target = _parse_currency_args(raw[1].strip())
+        result = await staff_service.adjust_currency(
+            message.from_user.id, target, currency, amount, mode
+        )
+        sign = "تنظیم به" if mode == "set" else ("افزودن" if amount >= 0 else "کسر")
+        await message.answer(
+            f"{result['emoji']} {sign} {result['label']} برای <code>{target}</code>\n"
+            f"موجودی جدید: <b>{result['balance']:,}</b>",
+            parse_mode="HTML",
+        )
+        try:
+            await message.bot.send_message(
+                target,
+                f"{result['emoji']} موجودی {result['label']}ات توسط پشتیبانی به‌روز شد.\n"
+                f"موجودی فعلی: {result['balance']:,}",
+            )
+        except Exception:
+            pass
+    except ValueError as e:
+        await message.answer(f"❌ {e}")
+    except Exception:
+        await message.answer("❌ فرمت نادرست.")
+
+
+@router.message(Command("diamond", "الماس"))
+@router.message(F.text.regexp(r"^(?:الماس|/diamond)\s+(.+)$"))
+async def cmd_diamond(message: Message):
+    await _grant_currency(message, "diamonds", "الماس")
+
+
+@router.message(Command("mint", "مینت"))
+@router.message(F.text.regexp(r"^(?:مینت|/mint)\s+(.+)$"))
+async def cmd_mint(message: Message):
+    await _grant_currency(message, "mint", "مینت")
+
+
+@router.message(Command("nova", "نوا"))
+@router.message(F.text.regexp(r"^(?:نوا|/nova)\s+(.+)$"))
+async def cmd_nova(message: Message):
+    await _grant_currency(message, "nova", "نوا")
+
+
 @router.message(Command("grant", "مقام"))
 @router.message(F.text.regexp(r"^(?:مقام|/grant)\s+(\w+)\s+(\d+)$"))
 async def cmd_grant(message: Message):

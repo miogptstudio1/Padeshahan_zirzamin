@@ -25,7 +25,9 @@ def empire_keyboard(owner_id: int):
          InlineKeyboardButton(text='🏗️ باشگاه', callback_data=f'empire:{uid}:buy:club')],
         [InlineKeyboardButton(text='🏗️ کارخانه', callback_data=f'empire:{uid}:buy:factory'),
          InlineKeyboardButton(text='⚔️ ارتش', callback_data=f'empire:{uid}:army')],
-        [InlineKeyboardButton(text='🪖 +5 سرباز', callback_data=f'empire:{uid}:recruit5'),
+        [InlineKeyboardButton(text='🪖 +1', callback_data=f'empire:{uid}:recruit1'),
+         InlineKeyboardButton(text='🪖 +5 سرباز', callback_data=f'empire:{uid}:recruit5'),
+         InlineKeyboardButton(text='🪖 پر تا سقف', callback_data=f'empire:{uid}:recruitmax'),
          InlineKeyboardButton(text='🗺️ قلمروها', callback_data=f'empire:{uid}:cities')],
         [InlineKeyboardButton(text='👑 قلمروهای من', callback_data=f'empire:{uid}:mycities'),
          InlineKeyboardButton(text='🏆 رتبه', callback_data=f'empire:{uid}:top')],
@@ -385,9 +387,15 @@ async def empire_menu_buttons(call: CallbackQuery):
                 f'⚔️ ارتش: {sol} سرباز\nقدرت: +{army_power_bonus(sol)}\nهزینه هر سرباز: {SOLDIER_RECRUIT_COST}',
                 reply_markup=kb,
             )
+        elif action == 'recruit1':
+            total, cost, balance = await service.recruit_soldiers(uid, 1)
+            await panel_update(call, f'🪖 سربازان: {total}/{MAX_SOLDIERS} (−{cost}) · 💰 {balance}', reply_markup=kb)
         elif action == 'recruit5':
             total, cost, balance = await service.recruit_soldiers(uid, 5)
-            await panel_update(call, f'🪖 سربازان: {total} (−{cost}) · 💰 {balance}', reply_markup=kb)
+            await panel_update(call, f'🪖 سربازان: {total}/{MAX_SOLDIERS} (−{cost}) · 💰 {balance}', reply_markup=kb)
+        elif action == 'recruitmax':
+            total, cost, balance = await service.recruit_soldiers(uid, 100)
+            await panel_update(call, f'🪖 سربازان: {total}/{MAX_SOLDIERS} (−{cost}) · 💰 {balance}', reply_markup=kb)
         elif action == 'top':
             rows = await service.leaderboard(10)
             lines = ['🏆 رتبه‌بندی ثروت'] + [f"{i}. {r['display_name'] or r['telegram_id']} — {r['coins']} سکه" for i, r in enumerate(rows, 1)]

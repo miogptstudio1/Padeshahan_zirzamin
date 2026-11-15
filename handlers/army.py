@@ -12,6 +12,25 @@ from games.empire.army_rules import UNITS, COMMANDERS, UNIT_ALIASES, COMMANDER_A
 router = Router()
 
 
+async def _status_text(uid: int) -> str:
+    p = await army_svc.total_army_power(uid)
+    lines = [
+        f"⚔️ قدرت کل: <b>{p['total']}</b>",
+        f"🪖 سرباز عادی: {p['soldiers']} (قدرت {p['soldier_power']})",
+        f"🧩 واحد تخصصی: قدرت {p['unit_power']}",
+    ]
+    for u in (p.get("units") or []):
+        lines.append(f"  • {u['name']} ×{u['quantity']} (قدرت {u['power']})")
+    if not (p.get("units") or []):
+        lines.append("  • هنوز واحد تخصصی نداری")
+    lines.append(f"⭐ فرمانده: قدرت {p['commander_power']}")
+    for c in (p.get("commanders") or []):
+        lines.append(f"  • {c['name']} (+{c['bonus']})")
+    if p.get("gym_power"):
+        lines.append(f"🏋️ زورخانه: +{p['gym_power']}")
+    return "\n".join(lines)
+
+
 def army_keyboard(uid: int) -> InlineKeyboardMarkup:
     rows = [
         [InlineKeyboardButton(text="📊 وضعیت ارتش", callback_data=f"advarmy:{uid}:status")],
@@ -38,28 +57,12 @@ def army_keyboard(uid: int) -> InlineKeyboardMarkup:
 @router.message(F.text.in_({"ارتش پیشرفته", "ارتش تخصصی", "فرماندهان", "واحد نظامی"}))
 async def army_menu(message: Message):
     try:
-        p = await army_svc.total_army_power(message.from_user.id)
+        text = await _status_text(message.from_user.id)
     except Exception as e:
         await message.answer(f"❌ {e}")
         return
-    lines = [
-        "⚔️ <b>ارتش پیشرفته</b>\n",
-        f"🪖 سرباز عادی: {p['soldiers']} (قدرت {p['soldier_power']})",
-        f"🎯 واحد تخصصی: قدرت {p['unit_power']}",
-        f"⭐ فرماندهان: قدرت {p['commander_power']}",
-        f"<b>مجموع قدرت: {p['total']}</b>\n",
-    ]
-    if p["units"]:
-        lines.append("<b>واحدها:</b>")
-        for u in p["units"]:
-            lines.append(f"• {u['name']} ×{u['quantity']} (قدرت {u['power']})")
-    if p["commanders"]:
-        lines.append("<b>فرماندهان:</b>")
-        for c in p["commanders"]:
-            lines.append(f"• {c['name']} (+{c['bonus']})")
-    lines.append("\nدستور: <code>استخدام کماندار</code> · <code>فرمانده رضا</code>")
     await message.answer(
-        "\n".join(lines),
+        text + "\n\nاز دکمه‌ها واحد و فرمانده بگیر.",
         parse_mode="HTML",
         reply_markup=army_keyboard(message.from_user.id),
     )
@@ -127,27 +130,27 @@ async def army_cb(call):
     try:
         if action == "status":
             await call.answer()
-            p = await army_svc.total_army_power(owner)
-            await panel_update(call, 
-                f"⚔️ قدرت کل: <b>{p['total']}</b>\n"
-                f"سرباز {p['soldiers']} · واحد {p['unit_power']} · فرمانده {p['commander_power']}",
-                parse_mode="HTML",
-                reply_markup=army_keyboard(owner),
-            )
+            await panel_update(call, await _status_text(owner), parse_mode="HTML", reply_markup=army_keyboard(owner))
         elif action == "catalog":
             await call.answer()
             await panel_update(call, army_svc.catalog_text(), parse_mode="HTML", reply_markup=army_keyboard(owner))
         elif action == "hireunit" and extra:
             r = await army_svc.recruit_unit(owner, extra, 1)
-            await call.answer("استخدام شد")
-            await panel_update(call, f"✅ {r['unit']} (−{r['cost']}) · 💰 {r['balance']}", reply_markup=army_keyboard(owner))
+            await call.answer(f"{r['unit']} ×{r['quantity']}")
+            body = (
+                f"✅ {r['unit']} استخدام شد (الان ×{r['quantity']})\n"
+                f"−{r['cost']}🪙 · موجودی {r['balance']}\n\n"
+                + await _status_text(owner)
+            )
+            await panel_update(call, body, parse_mode="HTML", reply_markup=army_keyboard(owner))
         elif action == "hirecmd" and extra:
             r = await army_svc.hire_commander(owner, extra)
             await call.answer("فرمانده آمد")
-            await panel_update(call, 
-                f"⭐ {r['commander']} (+{r['bonus']}) (−{r['cost']})",
-                reply_markup=army_keyboard(owner),
+            body = (
+                f"⭐ {r['commander']} (+{r['bonus']}) (−{r['cost']})\n\n"
+                + await _status_text(owner)
             )
+            await panel_update(call, body, parse_mode="HTML", reply_markup=army_keyboard(owner))
         else:
             await call.answer("اقدام نامعتبر", show_alert=True)
     except ValueError as e:

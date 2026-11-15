@@ -154,7 +154,7 @@ async def display_name(message: Message):
     return (message.from_user.full_name or str(message.from_user.id))[:80]
 
 @router.message(Command('coup_create', 'کودتا_بساز'))
-@router.message(F.text.in_({'کودتا بساز', 'ساخت کودتا', 'اتاق کودتا'}))
+@router.message(F.text.in_({'کودتا بساز', 'ساخت کودتا', 'اتاق کودتا', 'بساز کودتا', 'کودتا جدید', 'یه کودتا بساز'}))
 async def coup_create(message: Message):
     if not message.chat or message.chat.type == 'private':
         await message.answer('این دستور را داخل گروه بازی اجرا کن.'); return
@@ -164,7 +164,7 @@ async def coup_create(message: Message):
     except ValueError as exc: await message.answer(str(exc))
 
 @router.message(Command('coup_join', 'کودتا_جوین'))
-@router.message(F.text.in_({'کودتا جوین', 'جوین کودتا', 'پیوستن کودتا'}))
+@router.message(F.text.in_({'کودتا جوین', 'جوین کودتا', 'پیوستن کودتا', 'میام کودتا', 'ورود کودتا', 'عضو کودتا'}))
 async def coup_join(message: Message):
     if not message.chat or message.chat.type == 'private':
         await message.answer('برای پیوستن، دستور را در گروه بازی اجرا کن.'); return
@@ -177,7 +177,7 @@ async def coup_join(message: Message):
     except ValueError as exc: await message.answer(str(exc))
 
 @router.message(Command('coup_start', 'کودتا_شروع'))
-@router.message(F.text.in_({'کودتا شروع', 'شروع کودتا'}))
+@router.message(F.text.in_({'کودتا شروع', 'شروع کودتا', 'شروع بازی کودتا'}))
 async def coup_start(message: Message):
     if not message.chat or message.chat.type == 'private':
         await message.answer('این دستور را داخل گروه اتاق اجرا کن.'); return
@@ -211,13 +211,13 @@ async def coup_start(message: Message):
     turn_name = next((p['display_name'] for p in rows if str(p['telegram_id']) == turn), 'بازیکن اول')
     await message.answer(f'🃏 بازی کودتا شروع شد!\nهر بازیکن با ۲ سکه و ۲ کارت نفوذ آغاز می‌کند.\nنوبت اول: {turn_name}\nبرای اقدامات: /coup_help\nکارت خصوصی ارسال‌شده به {delivered} نفر از {len(rows)} نفر.')
 
-@router.message(Command('coup_help', 'کودتا_کمک'))
-@router.message(F.text.in_({'کودتا کمک', 'کمک کودتا', 'راهنما کودتا'}))
+@router.message(Command('coup_help', 'کودتا_کمک', 'کودتا_راهنما'))
+@router.message(F.text.in_({'کودتا کمک', 'کمک کودتا', 'راهنما کودتا', 'کودتا راهنما', 'قوانین کودتا', 'کودتا قوانین'}))
 async def coup_help(message: Message):
-    await message.answer('🃏 راهنمای کودتا\n/coup_action income — درآمد +۱\n/coup_action foreign_aid — کمک خارجی +۲\n/coup_action tax — مالیات +۳ (ادعای دوک)\n/coup_action steal شناسه — سرقت تا ۲ سکه (ادعای کاپیتان)\n/coup_action exchange — تبادل کارت (ادعای سفیر)\n/coup_action assassinate شناسه — ترور با ۳ سکه (ادعای آدم‌کش)\n/coup_action coup شناسه — کودتا با ۷ سکه\n/coup_accept — تأیید اقدام یا نهایی‌کردن مسدودسازی\n/coup_challenge — چالش ادعای نقش\n/coup_block duke|captain|ambassador|contessa — ادعای مسدودسازی\n/coup_lose 1 یا /coup_lose 2 — انتخاب کارت ازدست‌رفته در خصوصی\n/coup_exchange role1 role2 — انتخاب کارت‌های تبادل در خصوصی\n/coup_hand — دیدن کارت‌ها در خصوصی\n/coup_status — وضعیت بازی\n/coup_menu — منوی دکمه‌ای اقدامات\n\nپنجرهٔ چالش ۲۰ ثانیه است و پس از پایان، اقدام به‌صورت خودکار نهایی می‌شود.\nترتیب پیشنهادی: اعلام اقدام ← چالش یا مسدودسازی ← /coup_accept برای نهایی‌کردن. چالش‌شده باید کارت ازدست‌رفته را در خصوصی انتخاب کند.')
+    await message.answer('🃏 راهنمای کودتا\n\nساخت: کودتا بساز · ساخت کودتا · اتاق کودتا\nجوین: کودتا جوین · پیوستن کودتا\nشروع: کودتا شروع\nوضعیت: کودتا وضعیت\nمنوی دکمه: کودتا منو\nدست (پی\u200cوی): کودتا دست · کارت کودتا\n\nهرکی دو کارت داره. کارت تموم = حذف.\nفقط تو نوبت خودت یک اقدام بزن.\n\nاقدام\u200cها:\nدرآمد +۱ — امن\nکمک خارجی +۲ — دوک بلاک می\u200cکنه\nمالیات +۳ — ادعای دوک\nتبادل — ادعای سفیر\nسرقت — ادعای کاپیتان (تا ۲ سکه)\nترور — ۳ سکه · ادعای آدم\u200cکش · کنتسا بلاک\nکودتا — ۷ سکه · بلاک نداره\n\nبعد ادعا ۲۰ ثانیه وقت چالش/بلاک.\nدکمه «این دکمه\u200cها چی\u200cان؟» همون توضیح رو میاره.\n')
 
 @router.message(Command('coup_hand', 'کودتا_دست'))
-@router.message(F.text.in_({'کودتا دست', 'دست کودتا', 'کارت کودتا'}))
+@router.message(F.text.in_({'کودتا دست', 'دست کودتا', 'کارت کودتا', 'کارت‌های من', 'دست من کودتا'}))
 async def coup_hand(message: Message):
     if message.chat.type != 'private':
         await message.answer('برای حفظ محرمانگی، /coup_hand را در خصوصی ربات بزن.'); return
@@ -228,7 +228,7 @@ async def coup_hand(message: Message):
     await message.answer('🃏 کارت‌ها: ' + ('، '.join(ROLE_FA[c] for c in player['cards']) if player['cards'] else 'هیچ کارت زنده‌ای نداری') + f'\n🪙 سکه: {player["coins"]}\nوضعیت: {"زنده" if player["alive"] else "حذف‌شده"}')
 
 @router.message(Command('coup_status', 'کودتا_وضعیت'))
-@router.message(F.text.in_({'کودتا وضعیت', 'وضعیت کودتا'}))
+@router.message(F.text.in_({'کودتا وضعیت', 'وضعیت کودتا', 'حالت کودتا', 'استاتوس کودتا'}))
 async def coup_status(message: Message):
     if message.chat.type == 'private':
         room = await service.get_open_room_for_player(message.from_user.id)
@@ -396,7 +396,7 @@ async def coup_exchange(message: Message):
 
 
 @router.message(Command('coup_menu', 'کودتا_منو'))
-@router.message(F.text.in_({'کودتا منو', 'منو کودتا'}))
+@router.message(F.text.in_({'کودتا منو', 'منو کودتا', 'دکمه کودتا', 'اقدام کودتا'}))
 async def coup_menu(message: Message):
     if message.chat.type == 'private':
         room = await service.get_open_room_for_player(message.from_user.id)
