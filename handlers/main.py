@@ -78,6 +78,8 @@ async def start(message: Message):
     name = message.from_user.full_name or message.from_user.username or "رفیق"
     kb = await menu(message.from_user.id, message.chat.type == 'private')
     await message.answer(
+        f"<b>#به_یاد_هزاران_نام_جاوید</b>\n"
+        f"━━━━━━━━━━━━━━\n\n"
         f"اهلش هستی {name}؟\n"
         f"خوش اومدی زیر زمین.\n\n"
         f"مافیا و کودتا تو گروه.\n"
