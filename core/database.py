@@ -14,6 +14,9 @@ SCHEMA = [
 """ALTER TABLE users ADD COLUMN IF NOT EXISTS work_claimed_at TIMESTAMPTZ""",
 """ALTER TABLE users ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0 CHECK(xp >= 0)"""
 ,"""ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT""",
+"""ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds BIGINT NOT NULL DEFAULT 0""",
+"""ALTER TABLE users ADD COLUMN IF NOT EXISTS mint_mols BIGINT NOT NULL DEFAULT 0""",
+"""ALTER TABLE users ADD COLUMN IF NOT EXISTS novas BIGINT NOT NULL DEFAULT 0""",
 """CREATE TABLE IF NOT EXISTS empire_mission_claims (
  telegram_id BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
  mission_key TEXT NOT NULL, period_key TEXT NOT NULL, claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -426,6 +429,9 @@ async def connect_db():
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS last_heal_at TIMESTAMPTZ",
             "ALTER TABLE player_hideouts ADD COLUMN IF NOT EXISTS died_at TIMESTAMPTZ",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds BIGINT NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mint_mols BIGINT NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS novas BIGINT NOT NULL DEFAULT 0",
             "ALTER TABLE empire_equipment_inventory ADD COLUMN IF NOT EXISTS upgrade_level INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE game_rooms DROP CONSTRAINT IF EXISTS game_rooms_game_type_check",
             """CREATE TABLE IF NOT EXISTS player_gym_stats (

@@ -176,7 +176,8 @@ async def army_for(user_id: int):
 
 
 async def recruit_soldiers(user_id: int, count: int) -> tuple[int, int, int]:
-    cost = recruit_cost(count)
+    if not isinstance(count, int) or count < 1:
+        raise ValueError("تعداد سرباز باید عددی مثبت باشد.")
     async with db().acquire() as conn:
         async with conn.transaction():
             user = await conn.fetchrow("SELECT coins FROM users WHERE telegram_id=$1 FOR UPDATE", user_id)
@@ -184,17 +185,21 @@ async def recruit_soldiers(user_id: int, count: int) -> tuple[int, int, int]:
                 raise ValueError("ابتدا در خصوصی ربات /start را بزن.")
             army = await conn.fetchrow("SELECT soldiers FROM empire_armies WHERE telegram_id=$1 FOR UPDATE", user_id)
             current = int(army["soldiers"]) if army else 0
-            if current + count > MAX_SOLDIERS:
-                raise ValueError(f"حداکثر ارتش {MAX_SOLDIERS} سرباز است؛ اکنون {current} سرباز داری.")
+            remaining = MAX_SOLDIERS - current
+            if remaining <= 0:
+                raise ValueError(f"ارتش پر است ({MAX_SOLDIERS}/{MAX_SOLDIERS}).")
+            # نزدیک سقف: به اندازه جا استخدام کن (مثلاً ۲۹۸ → ۲ تا ۳۰۰)
+            hire = min(int(count), remaining)
+            cost = recruit_cost(hire)
             if int(user["coins"]) < cost:
-                raise ValueError(f"سکه کافی نیست؛ استخدام {count} سرباز {cost} سکه هزینه دارد.")
+                raise ValueError(f"سکه کافی نیست؛ استخدام {hire} سرباز {cost} سکه هزینه دارد.")
             balance = int(user["coins"]) - cost
             now = datetime.now(timezone.utc)
             await conn.execute("UPDATE users SET coins=$2 WHERE telegram_id=$1", user_id, balance)
             await conn.execute("""INSERT INTO empire_armies(telegram_id,soldiers,updated_at) VALUES($1,$2,$3)
-                ON CONFLICT(telegram_id) DO UPDATE SET soldiers=empire_armies.soldiers + EXCLUDED.soldiers, updated_at=EXCLUDED.updated_at""", user_id, count, now)
-            await conn.execute("INSERT INTO empire_transactions(telegram_id,amount,reason) VALUES($1,$2,$3)", user_id, -cost, f"army_recruit:{count}")
-            return current + count, cost, balance
+                ON CONFLICT(telegram_id) DO UPDATE SET soldiers=empire_armies.soldiers + EXCLUDED.soldiers, updated_at=EXCLUDED.updated_at""", user_id, hire, now)
+            await conn.execute("INSERT INTO empire_transactions(telegram_id,amount,reason) VALUES($1,$2,$3)", user_id, -cost, f"army_recruit:{hire}")
+            return current + hire, cost, balance
 
 
 async def disband_soldiers(user_id: int, count: int) -> tuple[int, int]:

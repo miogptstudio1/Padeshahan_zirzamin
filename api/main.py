@@ -47,6 +47,7 @@ def _build_dispatcher():
     from handlers.alliance import router as alliance_router
     from handlers.gym import router as gym_router
     from handlers.minigames import router as minigames_router
+    from handlers.currency import router as currency_router
     from membership import RequiredMembershipMiddleware
     dp = Dispatcher()
     membership_middleware = RequiredMembershipMiddleware()
@@ -68,6 +69,7 @@ def _build_dispatcher():
     dp.include_router(alliance_router)
     dp.include_router(gym_router)
     dp.include_router(minigames_router)
+    dp.include_router(currency_router)
     dp.include_router(callbacks_router)
     dp.include_router(mafia_router)
     dp.include_router(coup_router)
@@ -1146,3 +1148,10 @@ async def api_games_coin(body: dict, user: dict = Depends(current_user)):
         return await solo_games.coin_flip(int(user["id"]), str(pick))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/wallet")
+async def api_wallet(user: dict = Depends(current_user)):
+    from games.currency import service as currency_service
+    b = await currency_service.balances(int(user["id"]))
+    return b

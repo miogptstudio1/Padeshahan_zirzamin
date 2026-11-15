@@ -229,6 +229,100 @@ async def ban_user(actor_id: int, target_id: int, banned: bool) -> None:
         )
 
 
+
+
+async def adjust_currency(
+    actor_id: int,
+    target_id: int,
+    currency: str,
+    amount: int,
+    mode: str = "add",
+) -> dict[str, Any]:
+    """currency: coins|diamonds|mint|nova  mode: add|set"""
+    actor_id, target_id = int(actor_id), int(target_id)
+    amount = int(amount)
+    mode = (mode or "add").lower()
+    col_map = {
+        "coins": "coins",
+        "سکه": "coins",
+        "diamonds": "diamonds",
+        "diamond": "diamonds",
+        "الماس": "diamonds",
+        "mint": "mint_mols",
+        "مینت": "mint_mols",
+        "nova": "novas",
+        "novas": "novas",
+        "نوا": "novas",
+    }
+    col = col_map.get((currency or "").lower().strip())
+    if not col:
+        raise ValueError("ارز نامعتبر. یکی از: سکه · الماس · مینت · نوا")
+    # permissions: same ladder as coins (economy staff)
+    if mode == "set":
+        await require_perm(actor_id, "set_coins")
+        if amount < 0:
+            raise ValueError("مقدار set نمی‌تواند منفی باشد.")
+        # soft caps differ by currency
+        caps = {"coins": 10_000_000, "diamonds": 100_000, "mint_mols": 10_000, "novas": 1_000}
+        if amount > caps.get(col, 10_000_000):
+            raise ValueError(f"سقف set برای این ارز {caps.get(col):,} است.")
+    else:
+        if abs(amount) <= 5000:
+            await require_perm(actor_id, "grant_coins_small")
+        else:
+            await require_perm(actor_id, "grant_coins_large")
+        max_delta = {"coins": 50_000, "diamonds": 5_000, "mint_mols": 500, "novas": 50}
+        if abs(amount) > max_delta.get(col, 50_000):
+            raise ValueError(f"حداکثر تغییر در هر بار {max_delta.get(col):,} است.")
+    async with db().acquire() as conn:
+        # ensure premium currency columns
+        for ddl in (
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS diamonds BIGINT NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS mint_mols BIGINT NOT NULL DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS novas BIGINT NOT NULL DEFAULT 0",
+        ):
+            try:
+                await conn.execute(ddl)
+            except Exception:
+                pass
+        row = await conn.fetchrow(
+            f"SELECT COALESCE({col},0) AS bal, is_banned FROM users WHERE telegram_id=$1",
+            target_id,
+        )
+        if not row:
+            raise ValueError("بازیکن پیدا نشد.")
+        if mode == "set":
+            new_bal = amount
+        else:
+            new_bal = int(row["bal"]) + amount
+            if new_bal < 0:
+                raise ValueError("موجودی نمی‌تواند منفی شود.")
+        await conn.execute(
+            f"UPDATE users SET {col}=$2 WHERE telegram_id=$1",
+            target_id, new_bal,
+        )
+        await conn.execute(
+            """INSERT INTO staff_audit_log(actor_id, action, target_id, detail)
+               VALUES($1,'currency',$2,$3)""",
+            actor_id, target_id, f"col={col}; mode={mode}; amount={amount}; result={new_bal}",
+        )
+    labels = {
+        "coins": ("🪙", "سکه"),
+        "diamonds": ("💎", "الماس"),
+        "mint_mols": ("⚛️", "مول مینت"),
+        "novas": ("🌟", "نوا"),
+    }
+    emoji, label = labels[col]
+    return {
+        "telegram_id": target_id,
+        "column": col,
+        "emoji": emoji,
+        "label": label,
+        "balance": new_bal,
+        "coins": new_bal if col == "coins" else None,
+    }
+
+
 async def adjust_coins(actor_id: int, target_id: int, amount: int, mode: str = "add") -> dict[str, Any]:
     """mode: add | set. amount can be negative for add."""
     actor_id, target_id = int(actor_id), int(target_id)
